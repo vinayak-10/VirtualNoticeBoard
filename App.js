@@ -56,6 +56,7 @@ import Contacts from 'react-native-contacts';
 
 import { FAB, DefaultTheme, Portal, Provider, Card, Appbar,  Menu, Divider, Avatar, Title, Paragraph } from 'react-native-paper';
 import * as RNP from 'react-native-paper';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import {
   Menu as PMenu,
   MenuOptions,
@@ -997,7 +998,7 @@ const App: () => Node = ({navigation}) => {
  
 
     return (
-        <KeyboardAvoidingView  behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAwareScrollView>
           <View style={styles.container_signUp}>
 
             <TextInput
@@ -1041,7 +1042,7 @@ const App: () => Node = ({navigation}) => {
             </RNP.Button>
             <Button title="Sign-IN" disabled={false} onPress={signIn} />
         </View>
-        </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
     );
   }
 
