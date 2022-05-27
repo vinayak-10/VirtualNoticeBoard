@@ -1652,7 +1652,7 @@
   "resolved" "https://registry.npmjs.org/@react-native-community/eslint-plugin/-/eslint-plugin-1.2.0.tgz"
   "version" "1.2.0"
 
-"@react-native-firebase/app@^14.9.1", "@react-native-firebase/app@14.9.4":
+"@react-native-firebase/app@^14.9.4", "@react-native-firebase/app@14.9.4":
   "integrity" "sha512-/yWRROW1XUz9cOia85XStX/EOZGOy5LZ3mW2+moszqK+slB5TPa4/SbMgUmc7erZ8UyQxyRxq/03PhmVaSCpxw=="
   "resolved" "https://registry.npmjs.org/@react-native-firebase/app/-/app-14.9.4.tgz"
   "version" "14.9.4"
@@ -1661,7 +1661,7 @@
     "opencollective-postinstall" "^2.0.1"
     "superstruct" "^0.6.2"
 
-"@react-native-firebase/auth@^14.9.1":
+"@react-native-firebase/auth@^14.9.4":
   "integrity" "sha512-F/ugzDM6digmdQ5qXqMgbkNgbTJRhgaQZz/9eNATvVRfJTpMQs1fTh+hox4UbdUJdy6ZAU2o4ZCfTgiOHfHItQ=="
   "resolved" "https://registry.npmjs.org/@react-native-firebase/auth/-/auth-14.9.4.tgz"
   "version" "14.9.4"

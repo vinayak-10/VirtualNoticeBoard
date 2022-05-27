@@ -193,6 +193,14 @@ import {
       ]
 
 
+
+
+
+
+
+
+
+
       const Pages = ({item}) => {
         return(
           //Allow local file access with allowFileAccess prop (use local file uri to render post html)
@@ -206,25 +214,6 @@ import {
       }
 
 
-
-   const colors = ['tomato', 'thistle', 'skyblue', 'teal'];
-
-    /*const data = () => {
-      return(
-      <View>
-      {colors.map((item) => {
-
-        <View key={item} style={[styles.child, { backgroundColor: item }]}>
-        <Text style={styles.text}>{item}</Text>
-      </View>
-
-      <Swiper style={styles.wrapper} showsButtons={true} horizontal={true}>
-            {data}
-        </Swiper>
-    })}
-    </View>
-      );
-    };*/
 
       return(
         <View style={styles.container}>
@@ -240,6 +229,7 @@ import {
       );
   }
 
+ const colors = ['tomato', 'thistle', 'skyblue', 'teal'];
   const { width } = Dimensions.get('window');
 
 

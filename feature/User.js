@@ -18,7 +18,7 @@ const getAllUsers = async () => {
 };
 
 
-const getUser = async (number) => {
+/* const getUser = async (number) => {
   const [user, setUser] = useState(null);
     return fetch(URL+'get',{
         method: 'POST',
@@ -40,10 +40,10 @@ const getUser = async (number) => {
         });
 
         return user;
-};
+}; */
 
 
-const addUser = async (number, name, dspn, email) => {
+const addUser = async (number, name, dspn, email,auth_token) => {
   //Pass auth_token from confirm.verificationId
     fetch(URL+'add',{
         method: 'POST',
@@ -55,10 +55,17 @@ const addUser = async (number, name, dspn, email) => {
             _id: number,
             name: name,
             displayName: dspn,
-            e_mail: email
-
+            e_mail: email,
+            auth_token: auth_token,
+            auth_type: "Google FireBase"
         })
     })
+    .then((result) => {
+        console.log(result);
+        
+    }).catch((err) => {
+        console.log(err);
+    });
 };
 
 
@@ -80,4 +87,4 @@ const updateUser = async (number, name, dspn, email) => {
 };
 
 
-export {addUser, getUser, updateUser};
+export {addUser, updateUser};

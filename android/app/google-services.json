@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "298484600497",
+    "project_id": "virtual-notice-board-abe4c",
+    "storage_bucket": "virtual-notice-board-abe4c.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:298484600497:android:511c152c618958792edc90",
+        "android_client_info": {
+          "package_name": "com.virtualnoticeboard"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "298484600497-2vbcbo1ms7bniofhoa5c8g4a2hqjbcsi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.virtualnoticeboard",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "298484600497-8no5d6q62rbk4s13t6s54kafir9p39js.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBsTmwqMMAJg9Gwpo6x7T0a3GBUkLvsmdI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "298484600497-8no5d6q62rbk4s13t6s54kafir9p39js.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

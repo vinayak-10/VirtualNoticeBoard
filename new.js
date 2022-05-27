@@ -54,3 +54,27 @@ const renderItem = ({ item }: { item: Item }) => (
       </View>
     );
   };
+
+
+
+
+  <TextInput
+    keyboardType='email-address'
+    style={styles.input}
+
+    placeholder="Enter Email"
+    //onChangeText={(text) => { lemail = text; }}
+    onChangeText={(text) => setEmail( text ) }
+    value={email}
+    />
+
+
+
+    <TextInput
+      style={styles.input}
+      keyboardType='default'
+      placeholder="Enter Full Name"
+      //onChangeText={(text) => { lname = text; } }
+      onChangeText={(text) => setName( text ) }
+      value={name}
+    />

@@ -16,6 +16,7 @@
    Text,
    TextInput,
    useColorScheme,
+   ActivityIndicator,
    View,
    Button,
    Image,
@@ -35,7 +36,7 @@
 
 
 
-import auth from '@react-native-firebase/auth';
+
 import { NavigationContainer } from '@react-navigation/native';
 import { SwiperFlatList } from 'react-native-swiper-flatlist';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -46,7 +47,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import Animated,{ Value } from 'react-native-reanimated';
 import 'react-native-gesture-handler';
-import styles from './assets/Styles';
+import { PermissionsAndroid } from 'react-native';
+
+import Contacts from 'react-native-contacts';
+
 import { FAB, DefaultTheme, Portal, Provider, Card, Appbar,  Menu, Divider, Avatar, Title, Paragraph } from 'react-native-paper';
 import * as RNP from 'react-native-paper';
 import {
@@ -58,9 +62,9 @@ import {
 } from 'react-native-popup-menu';
 import * as icon from 'react-native-vector-icons/FontAwesome';
 
-import {actions, RichEditor, RichToolbar} from "react-native-pell-rich-editor";
 
-import {getUser, addUser, updateUser} from './feature/User';
+
+import { addUser, updateUser} from './feature/User';
 
 import {
   Colors,
@@ -70,7 +74,7 @@ import {
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
 
-
+import auth from '@react-native-firebase/auth';
 
 
 
@@ -160,27 +164,43 @@ const App: () => Node = ({navigation}) => {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
   };
 
+/*
+  let number = '';
+  let name = '';
+  let email = '';
+*/
 
   const [number, setNumber] = useState('');
-  const [name, setName] = React.useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+
+  const [displayName, setDisplayName] = useState('');
   const [token, setToken] = useState(null);
   const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState();
   const [confirm, setConfirm] = useState(null);
+  const [signUpInProgress, setSignUpInProgress] = useState(false);
+  const [otpValidationInProgress, setOtpValidationInProgress] = useState(false);
   const [code, setCode] = useState('');
   const [logIn, setLogIn] = useState(true);
   const [hid, setHid] = useState(null);
   const [cid, setCid] = useState(null);
+  const [nom, setNom] = useState('');
+  const [user, setUser] = useState(null);
+  const [post, setPost] = useState(null);
+  const [usr, setUsr] = useState();
+
+
+  const [edit, setEdit] = useState('');
+
   const [stat, setStat] = React.useState({ open: false });
   const { open } = stat;
   const onStateChange = ({ open }) => setStat({ open });
+
   const _editor = React.createRef();
-  const [edit, setEdit] = useState('');
   const richText = React.createRef();
   const [visible, setVisible] = React.useState(false);
-  const openMenu = () => setVisible(true);
 
+  const openMenu = () => setVisible(true);
   const closeMenu = () => setVisible(false);
   const PERSISTENCE_KEY = 'NAVIGATION_STATE_V1';
   const [isReady, setIsReady] = React.useState(false);
@@ -191,8 +211,178 @@ const App: () => Node = ({navigation}) => {
 
   let current_user = new User();
 
+  let URL_PROFILE = "http://api.dwall.xyz/v1/profile/";
+  let URL_POST = "http://api.dwall.xyz/v1/post/";
+
+  const html = `<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body>`;
+
+  let Posts = [];
+
+  let g_contacts = [];
 
 
+
+  const getUser = async (num) => {
+      //Need to get all users to display contacts.
+       fetch(URL_PROFILE+'get',{
+          method: 'POST',
+          headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json'
+            },
+          body: JSON.stringify({
+              Author: num,
+
+          })
+      })
+          .then((response) => response.json())
+          .then((jsonResponse) => {
+            console.log(jsonResponse);
+            setUser(jsonResponse);})
+          .catch((err) => {
+              console.log(err);
+          });
+
+
+  };
+
+
+  const getPost = async (num) => {
+
+       fetch(URL_POST+'get',{
+          method: 'POST',
+          headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json'
+            },
+          body: JSON.stringify({
+              Author: num,
+          })
+      })
+          .then((response) => response.json())
+          .then((jsonResponse) => {
+            console.log(jsonResponse);
+            setPost(jsonResponse);})
+          .catch((err) => {
+              console.log(err);
+          });
+  };
+
+
+  const getPostNext = async (num,lastDate) => {
+
+       fetch(URL_POST+'get',{
+          method: 'POST',
+          headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json'
+            },
+          body: JSON.stringify({
+              Author: num,
+              CreatedOn: lastDate,
+              Direction: "next",
+          })
+      })
+          .then((response) => response.json())
+          .then((jsonResponse) => {
+            console.log(jsonResponse);
+            setPost(jsonResponse);})
+          .catch((err) => {
+              console.log(err);
+          });
+  };
+
+
+  function LoadPost() {
+    getPost(user.profile.Author);
+    Posts.push(html+post);
+  }
+
+
+
+  function CreatePost({navigation}){
+    //Attach to FAB on Home Screen
+
+    const { signOut } = React.useContext(AuthContext);
+    const { back } = React.useContext(AuthContext);
+
+    //console.log("state.isInput : " + state.isInput);
+
+    React.useLayoutEffect(() => {
+      navigation.setOptions({
+        headerRight: () => (
+          <Button onPress={signOut}
+            title="Sign Out"
+          />
+        ),
+        headerLeft: () => (
+          <Button onPress={back}
+            title="Back"
+          />
+        ),
+
+      });
+    }, [navigation]);
+
+    return(
+      <View style={styles.container}>
+      <WebView
+        originWhitelist={['*']}
+        source={{html:html }}
+        style={{backgroundColor: 'white' }}
+        containerStyle={{width:Dimensions.get('window').width,
+                height: Dimensions.get('window').height/1.2,
+                flex: 0,}}
+      />
+      </View>
+    );
+  }
+
+
+  function GetPost({navigation}) {
+    //Link with Swiper FlatList to display created posts.
+    return(
+      <View style={styles.container}>
+      <RNP.Button mode='text' compact onPress={() => {getPost('+919000945575', "2022-05-23T20:11:14.696Z");}}>Get Post</RNP.Button>
+      </View>
+    );
+
+  }
+
+
+  function GetContacts(){
+    PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+          {
+            'title': 'Contacts',
+            'message': 'This app would like to view your contacts.',
+            'buttonPositive': 'Please accept bare mortal'
+          }
+        )
+        .then(Contacts.getAllWithoutPhotos()
+        .then((cs) => {
+          // work with contacts
+            //console.log(contacts)
+
+
+            cs.forEach((contact, i) => {
+                let contactObj = {};
+                contactObj.DisplayName = contact.givenName + ' ' + contact.familyName;
+                contact.phoneNumbers.forEach((num, i) => {
+                      //console.log(number.number);
+                      contactObj.PhoneNumber = num.number;
+              });        // end foreach
+              g_contacts.push(contactObj);
+            }); // end foreach
+
+            console.log(JSON.stringify(g_contacts));
+
+          }) // end then
+        .catch((e) => {
+                console.log(e)
+            })
+            );
+  }
 
 
 
@@ -210,6 +400,7 @@ const App: () => Node = ({navigation}) => {
   function SplashScreen() {
     return (
       <View>
+        <ActivityIndicator />
         <Text>Loading...</Text>
       </View>
     );
@@ -217,9 +408,9 @@ const App: () => Node = ({navigation}) => {
 
 
   async function signInWithPhoneNumber(phoneNumber) {
-    console.log("Calling SigninWithPhoneNumber for "+phoneNumber.toString());
+    console.log(phoneNumber);
     const confirmation = await auth().signInWithPhoneNumber(phoneNumber,true);
-    console.log(confirmation.toString());
+    console.log(confirmation.verificationId);
 
     setConfirm(confirmation);
   }
@@ -227,13 +418,12 @@ const App: () => Node = ({navigation}) => {
   async function confirmCode() {
     try {
       if(await confirm.confirm(code)){
-        console.log("Code confirmed");
-        setLogIn(true);
-        console.log("logIn: "+logIn);
-        setEdit('1');
-        console.log("edit: "+ edit);
-        addUser(number,name,"Kapil",email);
+
         current_user.token = confirm.verificationId;
+
+        console.log("Code confirmed for user:" + number + " Name:" + name + " Display Name:" + displayName + " email:" + email );
+
+        addUser(number,name,displayName,email,current_user.token);
 
       }
     } catch (error) {
@@ -245,7 +435,7 @@ const App: () => Node = ({navigation}) => {
           25,
           50
         );
-        
+
       }
   }
 
@@ -255,6 +445,7 @@ const App: () => Node = ({navigation}) => {
 
     const { signOut } = React.useContext(AuthContext);
     const { input } = React.useContext(AuthContext);
+    const { view } = React.useContext(AuthContext);
     console.log("state.isInput : " + state.isInput);
 
     console.log("Visible : " + visible);
@@ -265,44 +456,46 @@ const App: () => Node = ({navigation}) => {
       {
         id: "bd7acbea-c1b1-46c2-aed5-3ad53abb28ba",
         title: "First Item",
-        img: require('./My-project-1.png'),
+        img: require('./Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "3ac68afc-c605-48d3-a4f8-fbd91aa97f63",
         title: "Second Item",
-        img: require('./My-project-1.png'),
+        img: require('./Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-145571e29d72",
         title: "Third Item",
-        img: require('./My-project-1.png'),
+        img: require('./Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-fbd91aa97f63",
         title: "Fourth Item",
-        img: require('./My-project-1.png'),
+        img: require('./Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-3ad53abb28ba",
         title: "Fifth Item",
-        img: require('./My-project-1.png'),
+        img: require('./Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-bd7acbea",
         title: "Sixth Item",
-        img: require('./My-project-1.png'),
+        img: require('./Virtual-Notice-Board-logos.jpeg'),
       },
     ];
 
+
+    //Show all available posts in a list
     const Item = ({ item, onPress, backgroundColor, textColor }) => (
 
-        <TouchableOpacity onPress={onPress} style={[styles.home_item, backgroundColor]}>
+        <TouchableOpacity onPress={() => view()} style={[styles.home_item, backgroundColor]}>
           <Card style={[styles.home_card, backgroundColor]} mode='outlined'>
             <Card.Title title={item.title} subtitle={item.id} left={(props) => <Avatar.Icon {...props} icon="folder" />} />
             <Card.Content>
               <Title>{item.title}</Title>
             </Card.Content>
-            <Card.Cover style={styles.tinyLogo} source={ item.img} />
+            //<Card.Cover style={styles.tinyLogo} source={ item.img} />
             <Card.Actions>
 
                     <View
@@ -313,7 +506,7 @@ const App: () => Node = ({navigation}) => {
                         justifyContent: 'center',
                         //position: 'absolute',
                       }}>
-
+                      <Portal>
                       <Menu
                         visible={visible}
                         onDismiss={closeMenu}
@@ -328,10 +521,9 @@ const App: () => Node = ({navigation}) => {
                         <Menu.Item onPress={() => {}} title="Item 2" />
                         <Menu.Item onPress={() => {}} title="Item 3" />
                       </Menu>
+                      </Portal>
                     </View>
-
             </Card.Actions>
-
           </Card>
         </TouchableOpacity>
 
@@ -414,7 +606,7 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-  function Input({ navigation }) {
+  /* function Input({ navigation }) {
 
     const { signOut } = React.useContext(AuthContext);
     const { back } = React.useContext(AuthContext);
@@ -500,10 +692,10 @@ const App: () => Node = ({navigation}) => {
         </>
         </Provider>
       );
-  }
+  } */
 
 
-  function SignInScreen({ navigation }) {
+/*  function SignInScreen({ navigation }) {
 
     const { signIn } = React.useContext(AuthContext);
 
@@ -578,34 +770,29 @@ const App: () => Node = ({navigation}) => {
       </KeyboardAvoidingView>
     );
   }
+  */
 
 
   function OTPScreen() {
     //Add resend OTP functionality, Hide/Disable OTP Text Box until required
     const { signIn } = React.useContext(AuthContext);
+
     return (
 
       <View>
-       <Text>{number}</Text>
-        <TextInput
+      <Appbar.Header>
+        <Appbar.Content title={number} style={{alignContent: 'center'}}/>
+      </Appbar.Header>
+      <TextInput
         keyboardType='numeric'
         value={code}
-
         maxLength={10}
-        onEndEditing={(text) => setCode(text)}
-
+        onChangeText={setCode}
         />
         <Button title="Confirm Code" onPress={() =>
           {
           confirmCode();
-          console.log("edit: "+ edit);
-          setEdit("01")
-          console.log("edit: "+ edit);
-
-           signIn()
-
-
-
+          {signIn}
         }
          } />
       </View>
@@ -617,6 +804,7 @@ const App: () => Node = ({navigation}) => {
 
   function ContactsScreen({navigation}) {
 
+    //Use Contacts array to populate FlatList.
 
     const { input } = React.useContext(AuthContext);
     const { view } = React.useContext(AuthContext);
@@ -626,7 +814,7 @@ const App: () => Node = ({navigation}) => {
 
 
 
-    const DATA = [
+    /*  const DATA = [
       {
         id: "bd7acbea-c1b1-46c2-aed5-3ad53abb28ba",
         title: "First Item",
@@ -658,7 +846,7 @@ const App: () => Node = ({navigation}) => {
         img: require('./My-project-1.png'),
       },
     ];
-
+    */
 
 
 
@@ -666,10 +854,8 @@ const App: () => Node = ({navigation}) => {
       <MenuProvider skipInstanceCheck>
         <TouchableOpacity onPress={() => {view()}} style={[styles.contact_item, backgroundColor]}>
           <Card style={[styles.contact_card, backgroundColor]} mode='outlined'>
-            <Card.Title title={item.title} subtitle={item.id} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" />} />
-            <Card.Content>
-              <Title>{item.title}</Title>
-            </Card.Content>
+            <Card.Title title={item.DisplayName} subtitle={item.PhoneNumber} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" />} />
+
             <Card.Actions>
                 <PMenu>
                   <MenuTrigger text='Select action' />
@@ -693,8 +879,8 @@ const App: () => Node = ({navigation}) => {
 
 
      const renderItem = ({ item }) => {
-        const backgroundColor = item.id === cid ? "#228B22" : "#FFFFFF";
-        const color = item.id === cid ? 'white' : 'black';
+        const backgroundColor = item.PhoneNumber === cid ? "#228B22" : "#FFFFFF";
+        const color = item.PhoneNumber === cid ? 'white' : 'black';
 
         return (
           <Item
@@ -720,65 +906,34 @@ const App: () => Node = ({navigation}) => {
 
 
       return(
-
-
+      <Provider>
       <View style={styles.container}>
             <FlatList
-            data={DATA}
+            data={g_contacts}
             renderItem={renderItem}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.PhoneNumber}
             extraData={cid}
             contentInsetAdjustmentBehavior="automatic"
             style={{width: Dimensions.get("window").width,
             height: Dimensions.get("window").height-120 ,}}
           />
 
-        <Provider>
-        <Portal>
-          <FAB.Group
-            open={open}
-            icon={open ? 'calendar-today' : 'plus'}
-            style={{right: 150,}}
-            actions={[
-
-              {
-                icon: 'star',
-                label: 'Star',
-                onPress: () => {
-
-                  input() },
-              },
-              {
-                icon: 'email',
-                label: 'Email',
-                onPress: () => console.log('Pressed email'),
-              },
-              {
-                icon: 'bell',
-                label: 'Remind',
-                onPress: () => console.log('Pressed notifications'),
-                small: false,
-              },
-            ]}
-            onStateChange={onStateChange}
-            onPress={() => {
-            if (open) {
-              // do something if the speed dial is open
-              }
-            }}
+        <FAB
+            style={styles.fab}
+            small
+            icon="plus"
+            onPress={() => input()}
           />
-        </Portal>
-      </Provider>
-
 
     </View>
+    </Provider>
 
       );
 
   }
 
 
-  function HomeTabs({navigation}) {
+ function HomeTabs({navigation}) {
     const { signOut } = React.useContext(AuthContext);
     console.log("isReady: "+ isReady);
     React.useLayoutEffect(() => {
@@ -817,10 +972,8 @@ const App: () => Node = ({navigation}) => {
           backgroundColor: '#1E1B26'
         }
       }}
-      initialState={initialState}
-      onStateChange={(state)=> setInitialState(state) }
       >
-        <Tab.Screen name="Contacts" component={ContactsScreen} />
+        <Tab.Screen name="Users" component={ContactsScreen} />
         <Tab.Screen name="Feed" component={HomeScreen} />
       </Tab.Navigator>
     );
@@ -843,6 +996,9 @@ const App: () => Node = ({navigation}) => {
       mode: 'adaptive',
 
     };
+
+
+
     React.useLayoutEffect(() => {
       navigation.setOptions({
 
@@ -855,19 +1011,14 @@ const App: () => Node = ({navigation}) => {
       });
     }, [navigation]);
 
-        const pages = [
-          "https://reactnative.dev/",
-          "https://www.google.com/",
-          "https://reactnavigation.org/",
-          "https://www.anaconda.com/"
-        ]
 
 
-        const Pages = ({item}) => {
+        const Page = ({item}) => {
           return(
             //Allow local file access with allowFileAccess prop (use local file uri to render post html)
             <WebView
-              source={{uri:item}}
+              originWhitelist={['*']}
+              source={{html:item}}
               style={{width:Dimensions.get('window').width,
                       height: Dimensions.get('window').height,
                     flex: 1, }}
@@ -882,61 +1033,65 @@ const App: () => Node = ({navigation}) => {
               index={0}
               showPagination
               style={styles.wrapper}
-              data={pages}
-              renderItem={Pages}
+              data={Posts}
+              renderItem={Page}
+              onMomentumScrollEnd={LoadPost}
           />
-
-          <Portal>
-          <Appbar style={styles.bottom}>
-            <Appbar.Action
-                icon="archive"
-                onPress={() => console.log('Pressed archive')}
-              />
-            <Appbar.Action icon="mail" onPress={() => console.log('Pressed mail')} />
-            <Appbar.Action icon="label" onPress={() => console.log('Pressed label')} />
-            <Appbar.Action
-                icon="delete"
-                onPress={() => console.log('Pressed delete')}
-              />
-          </Appbar>
-          </Portal>
         </View>
         </Provider>
         );
   }
 
+/*
+  function setName(text) {
+      name = text;
+  }
+
+
+  function setNumber(text) {
+      number = text;
+  }
+
+  function setEmail(text) {
+      email = text;
+  }
+*/
+
 
   function SignUpScreen() {
+
+
+    //setSignUpInProgress(true);
+
     return (
-        <View>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+
           <View style={styles.container}>
-            <RNP.TextInput
+            <TextInput
               style={styles.input}
               keyboardType='default'
               placeholder="Enter Full Name"
-              label="Full Name"
-              onEndEditing={(text) => setName(text)}
+              //onChangeText={(text) => { lname = text; } }
+              onEndEditing={(text) => setName( text ) }
               value={name}
             />
 
-            <RNP.TextInput
+            <TextInput
               keyboardType='numeric'
               style={styles.input}
               value={number}
               placeholder="Enter Phone Number"
-              label="Number"
               maxLength={10}
-              onEndEditing={(text) => setNumber(text)}
+              //onChangeText={(text) => { lnumber = text; } }
+              onEndEditing={(text) => setNumber( text ) }
               />
 
-            <RNP.TextInput
+            <TextInput
               keyboardType='email-address'
               style={styles.input}
               value={email}
               placeholder="Enter Email"
-              label="Number"
-              onEndEditing={(text) => setEmail(text)}
+              //onChangeText={(text) => { lemail = text; }}
+              onEndEditing={(text) => setEmail( text ) }
               />
 
 
@@ -945,15 +1100,15 @@ const App: () => Node = ({navigation}) => {
                 style={styles.button}
                 onPress={() =>
                           {
-                            signInWithPhoneNumber("+91"+number);
+                            setName(lname);
+                            setEmail(lemail);
+                            setNumber(lnumber);
 
+                            signInWithPhoneNumber("+91"+number);
                           } }
-                disabled={false}
-              >
+                disabled={false}>
               Sign Up
             </RNP.Button>
-        </View>
-      </TouchableWithoutFeedback>
         </View>
     );
   }
@@ -971,10 +1126,10 @@ const App: () => Node = ({navigation}) => {
 
 
 
-/*
-     // Handle user state changes
+
+  /*   // Handle user state changes
      function onAuthStateChanged(user) {
-      setUser(user);
+      setUsr(usr);
       if (initializing) setInitializing(false);
   }
 
@@ -1052,6 +1207,7 @@ const App: () => Node = ({navigation}) => {
           };
       }
     },
+
     {
       isLoading: true,
       isSignout: false,
@@ -1084,6 +1240,7 @@ const App: () => Node = ({navigation}) => {
       };
 
       bootstrapAsync();
+      GetContacts();
   }, []
   );
 
@@ -1094,7 +1251,7 @@ const App: () => Node = ({navigation}) => {
           // We will also need to handle errors if sign in failed
           // After getting token, we need to persist the token using `SecureStore` or any other encrypted storage
           // In the example, we'll use a dummy token
-
+          console.log("signIn: " + user);
           dispatch({ type: 'SIGN_IN', token: current_user.token });
         },
         signOut: () => dispatch({ type: 'SIGN_OUT' }),
@@ -1130,13 +1287,48 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-  if(!state.userToken){
+// If confirm is there & user Token is not present => OTP
+if (confirm && !otpValidationInProgress) {
+
+  setSignUpInProgress(false);
+  setOtpValidationInProgress(true);
+
+  return(
+    <AuthContext.Provider value={authContext}>
+    <NavigationContainer>
+      <Stack.Navigator headerBackVisible={true}>
+              <Stack.Screen
+                name="OTP"
+                component={OTPScreen}
+                options={{
+                  title: 'Enter OTP',
+                // When logging out, a pop animation feels intuitive
+                 animationTypeForReplace: state.isSignout ? 'pop' : 'push',
+                 headerTitleAlign: 'center',
+                 headerStyle: {
+                  backgroundColor: '#054d17',
+                },
+                headerTintColor: '#fff',
+                headerTitleStyle: {
+                  fontWeight: 'bold',
+                },
+                }}
+              />
+      </Stack.Navigator>
+    </NavigationContainer>
+    </AuthContext.Provider>
+  );
+
+  }
+
+  // SignUp -> confirmation code -> OPT Screen -> userToken
+  // If confirm is there & user Token is not present => OTP
+  if (state.userToken == null && !signUpInProgress) {
+    setSignUpInProgress(true);
     return(
       <AuthContext.Provider value={authContext}>
       <NavigationContainer>
         <Stack.Navigator headerBackVisible={true}>
-        {confirm?
-              (
                 <Stack.Screen
                 name="SignUp"
                 component={SignUpScreen}
@@ -1154,26 +1346,6 @@ const App: () => Node = ({navigation}) => {
                 },
                 }}
               />
-              ) : (
-                <Stack.Screen
-                  name="OTP"
-                  component={OTPScreen}
-                  options={{
-                    title: 'Enter OTP',
-                  // When logging out, a pop animation feels intuitive
-                   animationTypeForReplace: state.isSignout ? 'pop' : 'push',
-                   headerTitleAlign: 'center',
-                   headerStyle: {
-                    backgroundColor: '#054d17',
-                  },
-                  headerTintColor: '#fff',
-                  headerTitleStyle: {
-                    fontWeight: 'bold',
-                  },
-                  }}
-                />
-                )
-              }
         </Stack.Navigator>
       </NavigationContainer>
       </AuthContext.Provider>
@@ -1181,8 +1353,8 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-
-
+  if (state.userToken) {
+  setOtpValidationInProgress(false);
 
   return (
     <AuthContext.Provider value={authContext}>
@@ -1193,7 +1365,7 @@ const App: () => Node = ({navigation}) => {
                 (
                 <Stack.Screen
                   name="Home"
-                  component={HomeTabs}
+                  component={ContactsScreen}
                   options={{
                   title: 'My home',
                   headerStyle: {
@@ -1230,9 +1402,9 @@ const App: () => Node = ({navigation}) => {
               (
               <Stack.Screen
                 name="Input"
-                component={Input}
+                component={CreatePost}
                 options={{
-                title: 'Input',
+                title: 'Creat Post',
                 headerStyle: {
                   backgroundColor: '#054d17',
                 },
@@ -1249,10 +1421,9 @@ const App: () => Node = ({navigation}) => {
       </NavigationContainer>
     </AuthContext.Provider>
   );
+}
 
-
-
-
+return null;
 };
 
 const styles = StyleSheet.create({
@@ -1358,7 +1529,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'blue',
   },
   fab: {
-    position: 'absolute',
+    position: 'relative',
     margin: 16,
     right: 0,
     bottom: 0,
@@ -1392,8 +1563,8 @@ export default App;
 
 
 
-/*
-<Provider>
+  /*
+    <Provider>
                       <View
                         style={{
                           paddingTop: 10,
@@ -1463,4 +1634,65 @@ export default App;
           icon="plus"
           onPress={() => console.log('Pressed')}
       />
+
+
+      <Card.Actions>
+
+                    <View
+                      style={{
+                        paddingTop: 0,
+                        marginLeft: Dimensions.get('window').width/1.5,
+                        //flexDirection: 'row-reverse',
+                        justifyContent: 'center',
+                        //position: 'absolute',
+                      }}>
+                      <Portal>
+                      <Menu
+                        visible={visible}
+                        onDismiss={closeMenu}
+                        anchor={<FAB
+                                style={styles.fab}
+                                small
+                                icon="dots-horizontal"
+                                onPress={() => setVisible(true)}
+                              />}
+                        >
+                        <Menu.Item onPress={() => {}} title="Item 1" />
+                        <Menu.Item onPress={() => {}} title="Item 2" />
+                        <Menu.Item onPress={() => {}} title="Item 3" />
+                      </Menu>
+                      </Portal>
+                    </View>
+            </Card.Actions>
+
+
+
+             React.useLayoutEffect(() => {
+      navigation.setOptions({
+        headerRight: () => (
+          <Button onPress={() => {
+            setConfirm(null); 
+            signOut()
+          }}
+            title="Sign Out"
+          />
+        ),
+        /*headerLeft: () =>(
+          confirm.verificationId
+        )
+        headerSearchBarOptions: {
+          // search bar options
+          onChangeText: (event) => setEdit(event.nativeEvent.text),
+
+          textColor: '#fff',
+        }, 
+      });
+    }, [navigation]);
+
+
+
+    const [initialState, setInitialState] = React.useState({
+    routes: [{ name: 'Home' }, { name: 'Profile' }],
+    index: 0,
+  });
       */

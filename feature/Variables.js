@@ -27,7 +27,6 @@ class User{
       if(email) this.email = email;
       if(token) this. token = token;
       if(dspn) this.dspn = dspn;
-      updateUser(this.number,this.name,this.dspn,this.email);
     }
 
 }

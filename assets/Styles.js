@@ -108,12 +108,7 @@ export default StyleSheet.create({
       right: 0,
       bottom: 0,
     },
-    fab: {
-      
-      margin: 0,
-      right: 0,
-      bottom: 0,
-    },
+   
     root: {
       flex: 2,
       marginTop: StatusBar.currentHeight || 0,
