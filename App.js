@@ -325,8 +325,9 @@ const App: () => Node = ({navigation}) => {
 
     const { signOut } = React.useContext(AuthContext);
     const { back } = React.useContext(AuthContext);
-    const URLName = encodeURIComponent(current_user.number);
+    const URLName = encodeURIComponent(current_user.number);  //current_user.number
     const URL = "http://editor.dwall.xyz/?Author="+ URLName;
+    let webRef = React.createRef(null);
 
     console.log(URL);
     //const URL = "http://editor.dwall.xyz/?Author="+current_user.number.substring(3);
@@ -356,22 +357,56 @@ const App: () => Node = ({navigation}) => {
             />
         ),
 
-      });
+      }
+      );
     }, [navigation]);
 
+    const run = `
+    document.body.style.backgroundColor = 'blue';
+    setTimeout(()=> {
+      window.ReactNativeWebView.postMessage("Hello!");
+    }, 2000);
+    true;
+    `;
+
+    setTimeout(() => {
+      webRef.injectJavaScript(run);
+    }, 3000);
+
+    return(
+      <KeyboardAwareScrollView style={styles.container}>
+        <WebView
+          originWhitelist={['*']}
+          ref={(r) => (webRef = r)}
+          onMessage={(event) => {
+            alert(event.nativeEvent.data);
+          }}
+          source={{uri:URL }}
+          style={{backgroundColor: 'white', position: 'relative' }}
+          containerStyle={{width:Dimensions.get('window').width-10,
+                  height: Dimensions.get('window').height/1.2,
+                  flex: 0,}}
+        />
+      </KeyboardAwareScrollView>
+    );
+
+      
+
+    /*
     //populate current_user with user details currently signed in and use that user's phone number to create a post.
     return(
-      <View style={styles.container}>
-      <WebView
-        originWhitelist={['*']}
-        source={{uri:URL }}
-        style={{backgroundColor: 'white' }}
-        containerStyle={{width:Dimensions.get('window').width,
-                height: Dimensions.get('window').height/1.2,
-                flex: 0,}}
-      />
-      </View>
+      <KeyboardAwareScrollView style={styles.container}>
+        <WebView
+          originWhitelist={['*']}
+          source={{uri:URL }}
+          style={{backgroundColor: 'white', position: 'relative' }}
+          containerStyle={{width:Dimensions.get('window').width-10,
+                  height: Dimensions.get('window').height/1.2,
+                  flex: 0,}}
+        />
+      </KeyboardAwareScrollView>
     );
+    */
   }
 
 
@@ -507,32 +542,32 @@ const App: () => Node = ({navigation}) => {
       {
         id: "bd7acbea-c1b1-46c2-aed5-3ad53abb28ba",
         title: "First Item",
-        img: require('./Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "3ac68afc-c605-48d3-a4f8-fbd91aa97f63",
         title: "Second Item",
-        img: require('./Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-145571e29d72",
         title: "Third Item",
-        img: require('./Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-fbd91aa97f63",
         title: "Fourth Item",
-        img: require('./Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-3ad53abb28ba",
         title: "Fifth Item",
-        img: require('./Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-bd7acbea",
         title: "Sixth Item",
-        img: require('./Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
       },
     ];
 
@@ -926,6 +961,7 @@ const App: () => Node = ({navigation}) => {
       console.log("Got posts for :" + selectedUser);
       setSelectedUser('');
     }
+    console.log(posts.length);
     
     const theme = {
       ...DefaultTheme,
@@ -1344,6 +1380,7 @@ const styles = StyleSheet.create({
   container:{
     marginTop: 0,
     padding: 5,
+    
   },
   swipe_container: {
     flex: 0,
@@ -1360,11 +1397,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   bottom: {
-    position: 'absolute',
+    position: 'relative',
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#eaeaea',
+    height: 50,
+    backgroundColor: '#84dbfa',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tinyLogo: {
     width: 100,
