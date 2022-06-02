@@ -172,21 +172,21 @@ const App: () => Node = ({navigation}) => {
 
 
   const [selectedUser, setSelectedUser] = useState(['']);
-  const [displayName, setDisplayName] = useState('');
-  const [token, setToken] = useState(null);
+  //const [displayName, setDisplayName] = useState('');
+  //const [token, setToken] = useState(null);
   //const [initializing, setInitializing] = useState(true);
   const [confirm, setConfirm] = useState(null);
 
   //const [logIn, setLogIn] = useState(true);
   const [hid, setHid] = useState(null);
-  const [cid, setCid] = useState(null);
+  //const [cid, setCid] = useState(null);
   //const [nom, setNom] = useState('');
   const [user, setUser] = useState({});
   const [post, setPost] = useState(null);
   //const [usr, setUsr] = useState();
 
 
-  const [edit, setEdit] = useState('');
+  //const [edit, setEdit] = useState('');
 /*
   const [stat, setStat] = React.useState({ open: false });
   const { open } = stat;
@@ -197,7 +197,7 @@ const App: () => Node = ({navigation}) => {
 
   const openMenu = () => setVisible(true);
   const closeMenu = () => setVisible(false);
-  const PERSISTENCE_KEY = 'NAVIGATION_STATE_V1';
+  //const PERSISTENCE_KEY = 'NAVIGATION_STATE_V1';
   //const [isReady, setIsReady] = React.useState(false);
 
   const [cache,setCache] = useState(new Cache({
@@ -211,8 +211,8 @@ const App: () => Node = ({navigation}) => {
 
   const [current_user, setCurUser] = useState(new User());
 
-  let URL_PROFILE = "http://api.dwall.xyz/v1/profile/";
-  let URL_POST = "http://api.dwall.xyz/v1/post/";
+  const URL_PROFILE = "http://api.dwall.xyz/v1/profile/";
+  const URL_POST = "http://api.dwall.xyz/v1/post/";
 
   const html = `<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>`;
 
@@ -390,18 +390,6 @@ const App: () => Node = ({navigation}) => {
     }, [navigation]);
 
     useEffect(() => {
-      const backAction = () => {
-        Alert.alert("Hold on!", "Are you sure you want to go back?", [
-          {
-            text: "Cancel",
-            onPress: () => null,
-            style: "cancel"
-          },
-          { text: "YES", onPress: () => back() }
-        ]);
-        return true;
-      };
-  
       const backHandler = BackHandler.addEventListener(
         "hardwareBackPress",
         back
@@ -727,6 +715,19 @@ const App: () => Node = ({navigation}) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     //Call getUser here before rendering Register user page.
+
+    useEffect(() => {
+      const backStart = () => {
+        dispatch({ type: 'RESTORE_TOKEN', token: null });
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+          backStart
+      );
+  
+      return () => backHandler.remove();
+    }, []);
    
     
 
@@ -791,6 +792,20 @@ const App: () => Node = ({navigation}) => {
     const { signUp } = React.useContext(AuthContext);
     const { signIn } = React.useContext(AuthContext);
     const [code, setCode] = useState('');
+
+    useEffect(() => {
+
+      const backStart = () => {
+        dispatch({ type: 'RESTORE_TOKEN', token: null });
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        backStart
+      );
+  
+      return () => backHandler.remove();
+    }, []);
 
     //console.log("name: "+current_user.name+" number: "+current_user.number+" email: "+current_user.email);
 
@@ -875,8 +890,9 @@ const App: () => Node = ({navigation}) => {
           style={styles.fab_sigOut}
           small
           icon="logout-variant"
-          onPress={() => {
+          onPress={async () => {
             setConfirm(null);
+            await cache.clearAll();
             signOut()
           }}
 
@@ -903,23 +919,27 @@ const App: () => Node = ({navigation}) => {
     // store item.phoneNumber in some variable
 
     
-      const Item = ({ item }) => (
+      class Item extends React.PureComponent {
 
-      <Provider>
-        <TouchableOpacity
-            onPress={() => {
-                setSelectedUser(item.PhoneNumber);
-                view()}}
-            style={[styles.contact_item]}>
-          <Card style={[styles.contact_card]} mode='outlined'>
-            <Card.Title title={item.DisplayName} subtitle={item.PhoneNumber} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" />} />
-          </Card>
+        render()
+          {
+            return(
+            <Provider>
+            <TouchableOpacity
+                onPress={() => {
+                    setSelectedUser(this.props.item.PhoneNumber);
+                    view()}}
+                style={[styles.contact_item]}>
+              <Card style={[styles.contact_card]} mode='outlined'>
+                <Card.Title title={this.props.item.DisplayName} subtitle={this.props.item.PhoneNumber} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" backgroundColor="#214463" />} />
+              </Card>
 
-        </TouchableOpacity>
-        </Provider>
+            </TouchableOpacity>
+            </Provider>
 
-      );
-
+          );
+        }
+      }
 
       
      const renderItem = ({ item }) => {
@@ -1071,6 +1091,15 @@ const App: () => Node = ({navigation}) => {
       });
     }, [navigation]);
 
+    useEffect(() => {
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        back
+      );
+  
+      return () => backHandler.remove();
+    }, []);
+
 
       const Page = ({item}) => {
           return(
@@ -1109,20 +1138,23 @@ const App: () => Node = ({navigation}) => {
     const [number, setNumber] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const {OTP} = React.useContext(AuthContext);
 
 
     return (
       <KeyboardAwareScrollView 
-          style={{flex:1}}
-          >
+          style={{flex:1}}>
           <View style={styles.container_signUp}>
             <Image
               style={styles.logo}
               source={require('./assets/Virtual-Notice-Board-logos.jpeg')}
                 />
-            <TextInput
+            <RNP.TextInput
               keyboardType='numeric'
+              mode='outlined'
               style={styles.input}
+              outlineColor='white'
+              activeOutlinedColor='#214463'
               placeholder="Enter Phone Number"
               maxLength={10}
               onChangeText={(text) => setNumber( text ) }
@@ -1132,10 +1164,12 @@ const App: () => Node = ({navigation}) => {
             <RNP.Button
                 mode='contained'
                 style={styles.button}
+                
                 onPress={() =>
                           {
                             current_user.update(name,"+91"+number,email);
                             signInWithPhoneNumber(current_user.number);
+                            OTP();
                           } }
                 disabled={false} >
               GET OTP
@@ -1146,10 +1180,11 @@ const App: () => Node = ({navigation}) => {
     );
   }
 
-  const HeaderBar = ({navigation, back,title}) => {
+  const HeaderBar = ({navigation, isBack, title}) => {
+        const {back} = React.useContext(AuthContext);
         return(
           <Appbar.Header style={{backgroundColor:"#214463", alignItems:'center'}}>
-            {back? <Appbar.BackAction onPress={back} /> : null}
+            {isBack? <Appbar.BackAction onPress={back} /> : null}
             <Appbar.Content title={title} style={{alignContent: 'center'}}/>
           </Appbar.Header>
           );                    
@@ -1170,8 +1205,10 @@ const App: () => Node = ({navigation}) => {
             ...prevState,
             userToken: action.token,
             isLoading: false,
+            isSignout: false,
             isInput: false,
             isView: false,
+            homeInitial: false,
           };
         case 'SIGN_IN':
           return {
@@ -1181,6 +1218,7 @@ const App: () => Node = ({navigation}) => {
             isInput: false,
             isView: false,
             isNewUser: false,
+            homeInitial: false,
           };
         case 'SIGN_UP':
           return {
@@ -1188,6 +1226,7 @@ const App: () => Node = ({navigation}) => {
             isSignout: false,
             isNewUser: true,
             userToken: action.token,
+            homeInitial: false,
           };
         case 'SIGN_OUT':
           return {
@@ -1197,6 +1236,7 @@ const App: () => Node = ({navigation}) => {
             isInput: false,
             isView: false,
             isNewUser: false,
+            homeInitial: false,
           };
         case 'INPUT':
           return{
@@ -1219,7 +1259,13 @@ const App: () => Node = ({navigation}) => {
             isSignout: false,
             isView: true,
             isNewUser: false,
+            homeInitial: false,
           };
+        case 'OTP':
+          return{
+            ...prevState,
+            homeInitial: true,
+          }
       }
     },
 
@@ -1304,6 +1350,9 @@ const App: () => Node = ({navigation}) => {
         view: async ()=>{
           dispatch({type: 'VIEW'});
         },
+        OTP: async ()=>{
+          dispatch({type:'OTP'});
+        },
       }),
       []
   );
@@ -1325,10 +1374,10 @@ const App: () => Node = ({navigation}) => {
   if(!state.userToken){
 
     return(
-      <AuthContext.Provider value={authContext}>
+      <AuthContext.Provider value={authContext} theme={RNP.DarkTheme}>
       <NavigationContainer>
         <Stack.Navigator headerBackVisible={true}>
-        {!confirm?
+        {!state.homeInitial?
               (
                 <Stack.Screen
                 name="SignUp"
@@ -1339,7 +1388,7 @@ const App: () => Node = ({navigation}) => {
                  animationTypeForReplace: state.isSignout ? 'pop' : 'push',
                  headerTitleAlign: 'center',
                  headerStyle: {
-                  backgroundColor: '#84dbfa',
+                  backgroundColor: '#214463',
                 },
                 headerTintColor: '#fff',
                 headerTitleStyle: {
@@ -1357,7 +1406,7 @@ const App: () => Node = ({navigation}) => {
                    animationTypeForReplace: state.isSignout ? 'pop' : 'push',
                    headerTitleAlign: 'center',
                    headerStyle: {
-                    backgroundColor: '#84dbfa',
+                    backgroundColor: '#214463',
                   },
                   headerTintColor: '#fff',
                   headerTitleStyle: {
@@ -1387,7 +1436,7 @@ const App: () => Node = ({navigation}) => {
               },
               headerTitleAlign: 'center',
               headerStyle: {
-                backgroundColor: '#84dbfa',
+                backgroundColor: '#214463',
               }
               }
             }
@@ -1412,7 +1461,7 @@ const App: () => Node = ({navigation}) => {
               },
               headerTitleAlign: 'center',
               headerStyle: {
-                backgroundColor: '#84dbfa',
+                backgroundColor: '#214463',
               }
               }
             }
@@ -1436,9 +1485,9 @@ const App: () => Node = ({navigation}) => {
                   options={{
                   title: 'My home',
                   headerStyle: {
-                    backgroundColor: '#84dbfa',
+                    backgroundColor: '#FFF',
                   },
-                  headerTintColor: '#fff',
+                  headerTintColor: '#214463',
                   headerTitleStyle: {
                     fontWeight: 'bold',
                   },
@@ -1458,7 +1507,7 @@ const App: () => Node = ({navigation}) => {
                   fontWeight: 'bold',
                 },
                 headerTitleAlign: 'center',
-                header: (props) => <HeaderBar title="Create Post" back={() => {return React.useContext(AuthContext);}} {...props} />
+                header: (props) => <HeaderBar title="Create Post" isBack={true} {...props} />
               }}
               />
             )
