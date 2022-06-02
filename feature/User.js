@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, PureComponent } from 'react';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 
 
@@ -61,7 +61,7 @@ const addUser = async (number, name, dspn, email,auth_token) => {
         })
     })
     .then((result) => {
-        console.log(result);
+        //console.log(result);
         
     }).catch((err) => {
         console.log(err);
@@ -85,6 +85,8 @@ const updateUser = async (number, name, dspn, email) => {
         })
     })
 };
+
+
 
 
 export {addUser, updateUser};

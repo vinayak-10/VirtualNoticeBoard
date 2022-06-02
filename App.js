@@ -34,6 +34,7 @@
    RefreshControl,
    PermissionsAndroid,
    Alert,
+   BackHandler,
  } from 'react-native';
 
 
@@ -360,7 +361,7 @@ const App: () => Node = ({navigation}) => {
     //const URL = "http://editor.dwall.xyz/?Author="+current_user.number.substring(3);
 
     //console.log("state.isInput : " + state.isInput);
-    /*
+    
     React.useLayoutEffect(() => {
       navigation.setOptions({
         headerRight: () => (
@@ -387,7 +388,28 @@ const App: () => Node = ({navigation}) => {
       }
       );
     }, [navigation]);
-    */
+
+    useEffect(() => {
+      const backAction = () => {
+        Alert.alert("Hold on!", "Are you sure you want to go back?", [
+          {
+            text: "Cancel",
+            onPress: () => null,
+            style: "cancel"
+          },
+          { text: "YES", onPress: () => back() }
+        ]);
+        return true;
+      };
+  
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        back
+      );
+  
+      return () => backHandler.remove();
+    }, []);
+    /*
     const run = `
     document.body.style.backgroundColor = 'blue';
     setTimeout(()=> {
@@ -399,12 +421,12 @@ const App: () => Node = ({navigation}) => {
     setTimeout(() => {
       webRef.current.injectJavaScript(run);
     }, 3000);
-
+    */
     return(
       <KeyboardAwareScrollView style={styles.container}>
         <WebView
           originWhitelist={['*']}
-          ref={(r) => { webRef=r }}
+          
           onMessage={(event) => {
             alert(event.nativeEvent.data);
           }}
@@ -476,6 +498,7 @@ const App: () => Node = ({navigation}) => {
                 contact.phoneNumbers.forEach((num, i) => {
                       //console.log(number.number);
                       contactObj.PhoneNumber = num.number;
+                      contactObj.index = i;
                   });        // end foreach
               contactsObj.push(contactObj);
             }); // end foreach
@@ -742,10 +765,12 @@ const App: () => Node = ({navigation}) => {
                         luser["name"] = current_user.name;
                         luser["displayName"] = current_user.dspn;
                         luser["e_mail"] = current_user.email;
-                        luser["auth_token"] = current_user.auth_token;
+                        luser["auth_token"] = current_user.token;
                         luser["auth_type"] = "Google FireBase";
                        
                        await cache.set("SignedIn_User", JSON.stringify(luser));
+                       let c = await cache.get("SignedIn_User");
+                       console.log("Calling from Create User function: \n"+c);
                        signIn();
                       }}
               disabled={false}
@@ -898,11 +923,11 @@ const App: () => Node = ({navigation}) => {
 
       
      const renderItem = ({ item }) => {
-       console.log(item);
+       
 
         return (
           <Item
-            key={item.PhoneNumber}
+            key={item.index}
             item={item}
             style={{paddingHorizontal:0, marginHorizontal:10,width: Dimensions.get("window").width / 2.6,
             height: Dimensions.get("window").width / 2.6,}}
@@ -929,7 +954,8 @@ const App: () => Node = ({navigation}) => {
               bounces={true}
               data={g_contacts}
               renderItem={renderItem}
-              keyExtractor={(item) => item.PhoneNumber}
+              keyExtractor={(item) => item.index}
+              initialNumToRender={10}
               onEndReached={()=>{}}
               style={{width: Dimensions.get("window").width,
               height: Dimensions.get("window").height-120 }}
@@ -1109,7 +1135,6 @@ const App: () => Node = ({navigation}) => {
                 onPress={() =>
                           {
                             current_user.update(name,"+91"+number,email);
-                            
                             signInWithPhoneNumber(current_user.number);
                           } }
                 disabled={false} >
@@ -1195,12 +1220,6 @@ const App: () => Node = ({navigation}) => {
             isView: true,
             isNewUser: false,
           };
-        case 'HOME_INITIAL':
-          return{
-            ...prevState,
-            homeInitial: action.payload,
-            isNewUser: false,
-          };
       }
     },
 
@@ -1210,7 +1229,7 @@ const App: () => Node = ({navigation}) => {
       userToken: null,
       isInput: false,
       isView: false,
-      homeInitial: null,
+      homeInitial: false,
     }
   );
 
@@ -1227,6 +1246,7 @@ const App: () => Node = ({navigation}) => {
           
           const luser = await cache.get("SignedIn_User");
           const lJsonUser = JSON.parse(luser);
+          console.log("Calling from bootstrapasync:\nluser :-   " + luser+"\nlJsonUser:-   "+lJsonUser);
           userToken = lJsonUser.auth_token;
           current_user.update(lJsonUser.name,lJsonUser._id,lJsonUser.e_mail,lJsonUser.auth_token,lJsonUser.displayName);
           
