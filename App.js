@@ -32,6 +32,8 @@
    Linking,
    Platform,
    RefreshControl,
+   PermissionsAndroid,
+   Alert,
  } from 'react-native';
 
 
@@ -50,21 +52,16 @@ import { createDrawerNavigator } from '@react-navigation/drawer';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import Animated,{ Value } from 'react-native-reanimated';
 import 'react-native-gesture-handler';
-import { PermissionsAndroid } from 'react-native';
 
 import Contacts from 'react-native-contacts';
 
 import { FAB, DefaultTheme, Portal, Provider, Card, Appbar,  Menu, Divider, Avatar, Title, Paragraph } from 'react-native-paper';
 import * as RNP from 'react-native-paper';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
-import {
-  Menu as PMenu,
-  MenuOptions,
-  MenuOption,
-  MenuTrigger,
-  MenuProvider,
-} from 'react-native-popup-menu';
+
 import * as icon from 'react-native-vector-icons/FontAwesome';
+
+import { Cache } from "react-native-cache";
 
 
 
@@ -171,19 +168,19 @@ const App: () => Node = ({navigation}) => {
 
 
 
-  
-  
+
+
   const [selectedUser, setSelectedUser] = useState(['']);
   const [displayName, setDisplayName] = useState('');
   const [token, setToken] = useState(null);
   //const [initializing, setInitializing] = useState(true);
   const [confirm, setConfirm] = useState(null);
-  
+
   //const [logIn, setLogIn] = useState(true);
   const [hid, setHid] = useState(null);
   const [cid, setCid] = useState(null);
   //const [nom, setNom] = useState('');
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState({});
   const [post, setPost] = useState(null);
   //const [usr, setUsr] = useState();
 
@@ -200,8 +197,16 @@ const App: () => Node = ({navigation}) => {
   const openMenu = () => setVisible(true);
   const closeMenu = () => setVisible(false);
   const PERSISTENCE_KEY = 'NAVIGATION_STATE_V1';
-  const [isReady, setIsReady] = React.useState(false);
-  
+  //const [isReady, setIsReady] = React.useState(false);
+
+  const [cache,setCache] = useState(new Cache({
+    namespace: "User",
+    policy: {
+        maxEntries: 50000, // if unspecified, it can have unlimited entries
+        stdTTL: 0 // the standard ttl as number in seconds, default: 0 (unlimited)
+    },
+    backend: AsyncStorage
+  }));
 
   const [current_user, setCurUser] = useState(new User());
 
@@ -210,36 +215,59 @@ const App: () => Node = ({navigation}) => {
 
   const html = `<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>`;
 
-  
+
   const [posts, setPosts] = useState([]);
 
   const [g_contacts, setGcontacts] = useState([{}]);
 
 
 
-  const getUser = async (num) => {
+  const getUser = (num) => new Promise(async resolve => {
       //Need to get all users to display contacts.
-       fetch(URL_PROFILE+'get',{
-          method: 'POST',
-          headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json'
-            },
-          body: JSON.stringify({
+       
+      try{
+        console.log("Fetching profile");
+         const response = await fetch(URL_PROFILE+'get',{
+              method: 'POST',
+              headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+                },
+              body: JSON.stringify({
               Author: num,
 
-          })
-      })
-          .then((response) => response.json())
-          .then((jsonResponse) => {
-            console.log(jsonResponse);
-            setUser(jsonResponse);})
-          .catch((err) => {
-              console.log(err);
+              })
           });
+          console.log("Waiting for fetch profile response");
 
+          let jsonResponse = await response.json();
+          //let obj = {};
+          if(jsonResponse.Response === 200) {
+              console.log("Calling from getUser:\n" + JSON.stringify(jsonResponse.profile));
+              /*
+              for (const [key, value] of Object.entries(jsonResponse.profile)){
+                  console.log("Key: "+key+ " Value: "+value);
+                  obj[key] = value;
+              }
+              console.log(JSON.stringify(obj));
+              */
+              await cache.set("SignedIn_User",JSON.stringify(jsonResponse.profile));
+              //setUser(jsonResponse.profile);
+              //console.log("Calling from getUser on user:\n" + JSON.stringify(user));
+              //dispatch({ type: 'SIGN_IN', token: current_user.token });
+              resolve(true);
+            }
+            else{
+              console.log("User Not Found Will Collect Profile.");
+              //dispatch({ type: 'SIGN_UP', token: current_user.token });
+              resolve(false);
+            }
 
-  };
+    }catch(err){
+      console.log(err);
+      resolve(false);
+    }
+  });
 
 
   function getPost(num){
@@ -254,7 +282,7 @@ const App: () => Node = ({navigation}) => {
               Author: num,
           })
       })
-          .then((response) => { 
+          .then((response) => {
               //console.log(response);
               return response.json();
             })
@@ -262,12 +290,11 @@ const App: () => Node = ({navigation}) => {
             console.log(jsonResponse);
 
             if (jsonResponse.Response==200) {
-              
-            
+
             let resp_arr = [];
-            let resp = '';
+            
               jsonResponse.p.forEach((element,i) => {
-                  
+
                   resp_arr.push(html+"<body>"+element.Post+"</body>");
                 });
               console.log(resp_arr);
@@ -333,16 +360,16 @@ const App: () => Node = ({navigation}) => {
     //const URL = "http://editor.dwall.xyz/?Author="+current_user.number.substring(3);
 
     //console.log("state.isInput : " + state.isInput);
-
+    /*
     React.useLayoutEffect(() => {
       navigation.setOptions({
         headerRight: () => (
           <FAB
           style={styles.fab_sigOut}
           small
-          icon="logout-variant" 
+          icon="logout-variant"
           onPress={() => {
-            setConfirm(null); 
+            setConfirm(null);
             signOut()
           }}
             title="Sign Out"
@@ -353,14 +380,14 @@ const App: () => Node = ({navigation}) => {
               style={styles.fab_post}
               small
               icon="keyboard-backspace"
-              onPress={back}  
+              onPress={back}
             />
         ),
 
       }
       );
     }, [navigation]);
-
+    */
     const run = `
     document.body.style.backgroundColor = 'blue';
     setTimeout(()=> {
@@ -370,14 +397,14 @@ const App: () => Node = ({navigation}) => {
     `;
 
     setTimeout(() => {
-      webRef.injectJavaScript(run);
+      webRef.current.injectJavaScript(run);
     }, 3000);
 
     return(
       <KeyboardAwareScrollView style={styles.container}>
         <WebView
           originWhitelist={['*']}
-          ref={(r) => (webRef = r)}
+          ref={(r) => { webRef=r }}
           onMessage={(event) => {
             alert(event.nativeEvent.data);
           }}
@@ -390,7 +417,7 @@ const App: () => Node = ({navigation}) => {
       </KeyboardAwareScrollView>
     );
 
-      
+
 
     /*
     //populate current_user with user details currently signed in and use that user's phone number to create a post.
@@ -421,19 +448,23 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-  function GetContacts(){
-    PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-          {
-            'title': 'Contacts',
-            'message': 'This app would like to view your contacts.',
-            'buttonPositive': 'Please accept bare mortal'
-          }
-        )
-        .then(Contacts.getAllWithoutPhotos()
-        .then((cs) => {
-          // work with contacts
-            //console.log(contacts)
+  const GetContacts = async () => {
+    
+      
+      try{
+      const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+                  {
+                    'title': 'Contacts',
+                    'message': 'This app would like to view your contacts.',
+                    'buttonPositive': 'Please accept bare mortal'
+                  }
+                );
+        if(permission === PermissionsAndroid.RESULTS.GRANTED)                
+        {
+          let cs = await Contacts.getAllWithoutPhotos();
+            
+            // work with contacts
+            //console.log("Printing cs: \n" + cs);
             let contactsObj = [];
             let name_array = [];
 
@@ -441,26 +472,35 @@ const App: () => Node = ({navigation}) => {
                 let contactObj = {};
                 contactObj.DisplayName = contact.givenName + ' ' + contact.familyName;
                 name_array.push(contactObj.DisplayName);
+                
                 contact.phoneNumbers.forEach((num, i) => {
                       //console.log(number.number);
                       contactObj.PhoneNumber = num.number;
-              });        // end foreach
+                  });        // end foreach
               contactsObj.push(contactObj);
             }); // end foreach
+
             name_array.sort();
-            let key = "DisplayName"
+            let key = "DisplayName";
             contactsObj.sort(function(a,b){
               var x = a[key]; var y = b[key];
               return ((x < y) ? -1 : ((x > y) ? 1 : 0));
             });
-            setGcontacts([{"DisplayName":current_user.dspn,"PhoneNumber":current_user.number}].concat(contactsObj));//Set first element to be the use in g_contacts array.
-           
-          }) // end then
-        .catch((e) => {
-                console.log(e)
-            })
-            );
-  }
+            setGcontacts([{"DisplayName":current_user.name,"PhoneNumber":current_user.number}].concat(contactsObj));//Set first element to be the use in g_contacts array.
+            //console.log("Everything run successfully in GetContacts: \n" + JSON.stringify(g_contacts) + "\n"+ JSON.stringify(contactsObj));
+
+          
+          
+        } // end then
+        else{
+          console.log("Calling from GetContacts else \n" + "Permission not granted");
+        }
+      }
+      catch(err){
+        console.log("Calling from GetContacts last catch() \n"+err);
+      }
+        
+  };
 
 
 
@@ -477,8 +517,11 @@ const App: () => Node = ({navigation}) => {
 
   function SplashScreen() {
     return (
-      <View>
-        <ActivityIndicator />
+      <View style={{justifyContent:'space-evenly', alignItems:'center',flex: 1}}>
+        <Image 
+          source={require('./assets/Virtual-Notice-Board-logos.jpeg')}
+          style={styles.logo} />
+        <RNP.ActivityIndicator animating={true} color={RNP.Colors.red800} size='large' />
         <Text>Loading...</Text>
       </View>
     );
@@ -493,12 +536,13 @@ const App: () => Node = ({navigation}) => {
     setConfirm(confirmation);
   }
 
-  async function confirmCode(code) {
+  const confirmCode = (code) => new Promise(async resolve => {
+    console.log("Inside Confirm Code");
     try {
       if(await confirm.confirm(code)){
 
         current_user.token = confirm.verificationId;
-        setIsReady(true);
+        //setIsReady(true);
         ToastAndroid.showWithGravityAndOffset(
           "Code Confirmed",
           ToastAndroid.LONG,
@@ -509,7 +553,11 @@ const App: () => Node = ({navigation}) => {
 
         //console.log("Code confirmed for user:" + number + " Name:" + name + " Display Name:" + displayName + " email:" + email );
 
-        addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
+        //addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
+        
+        
+        resolve(true);
+        
 
       }
     } catch (error) {
@@ -521,9 +569,9 @@ const App: () => Node = ({navigation}) => {
           25,
           50
         );
-
+          resolve(false);
       }
-  }
+  });
 
 
   function HomeScreen({navigation}) {
@@ -534,7 +582,6 @@ const App: () => Node = ({navigation}) => {
     const { view } = React.useContext(AuthContext);
     console.log("state.isInput : " + state.isInput);
 
-    console.log("Visible : " + visible);
 
 
 
@@ -614,9 +661,9 @@ const App: () => Node = ({navigation}) => {
 
     }
 
-    
-   
-    
+
+
+
 
     return(
       <Provider>
@@ -650,126 +697,129 @@ const App: () => Node = ({navigation}) => {
 
 
 
-/*  function SignInScreen({ navigation }) {
+  
+  function CreateUserScreen({ navigation }) {
 
     const { signIn } = React.useContext(AuthContext);
-
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    //Call getUser here before rendering Register user page.
+   
+    
 
     return (
 
 
-      <KeyboardAvoidingView
-              behaviour={Platform.OS=="ios"?"padding":"height"}
-              style={styles.container}>
+      <KeyboardAwareScrollView>
 
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
 
-        <View style={styles.container}>
-
-            <Image
-              style={styles.logo}
-              source={require('./Virtual-Notice-Board-logos.jpeg')}
-                />
+        <View style={styles.new_user_container}>
 
             <TextInput
-              style={styles.input}
-              keyboardType='numeric'
-              placeholder="Enter Number"
-              onEndEditing={(text) => setText(text)}
-              defaultValue={text}
-              maxLength={10}
-              editable={true}
-
-            />
-            <Button
-              style={styles.button}
-              onPress={() => {
-                        //Add functionality to send OTP to Mobile
-                        //signInWithPhoneNumber("+91"+text)
-                        //setLogIn(false)
-                        signIn()
+              style={styles.new_input}
+              keyboardType='default'
+              placeholder="Enter Full Name"
+              onChangeText={(text) => setName( text ) }
+              value={name}
+              />
+            <TextInput
+              keyboardType='email-address'
+              style={styles.new_input}
+              value={email}
+              placeholder="Enter Email"
+              onChangeText={(text) => setEmail( text ) }
+              />
+            <RNP.Button
+              style={styles.next_button}
+              mode='contained'
+              onPress={async () => {
+                       //Add User with name and E-mail
+                       current_user.update(name,'',email,'');
+                       console.log(current_user.name + " "+ current_user.email);
+                       addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
+                       let luser = {};
+                        luser["_id"] = current_user.number;
+                        luser["name"] = current_user.name;
+                        luser["displayName"] = current_user.dspn;
+                        luser["e_mail"] = current_user.email;
+                        luser["auth_token"] = current_user.auth_token;
+                        luser["auth_type"] = "Google FireBase";
+                       
+                       await cache.set("SignedIn_User", JSON.stringify(luser));
+                       signIn();
                       }}
               disabled={false}
-              title={"Send OTP"}
-            />
-            <TextInput
-              keyboardType='numeric'
-              style={styles.input}
-              value={code}
-              defaultValue={code}
-              placeholder="Enter OTP"
-              maxLength={10}
-              onEndEditing={(text) => setCode(text)}
-              editable={ confirm===null ? false : true }
-
-              />
-            <Button
-                title="Confirm Code"
-                onPress={() =>
-                          {
-                              confirmCode();
-                              console.log("edit: "+ edit);
-                              setEdit("01")
-                              console.log("edit: "+ edit);
-                              signIn()
-                          } }
-                disabled={confirm===null ? true : false }
-              />
-              <RNP.Button mode='text' style={styles.resend_button} compact  onPress={() => console.log(' Resend Pressed')}>
-                Resend OTP
-              </RNP.Button>
-
+            >
+            Next
+            </RNP.Button>
         </View>
-
-      </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+    
+      </KeyboardAwareScrollView>
     );
   }
-*/
+
 
 
   function OTPScreen() {
     //Add resend OTP functionality, Hide/Disable OTP Text Box until required
+  
+    const { signUp } = React.useContext(AuthContext);
     const { signIn } = React.useContext(AuthContext);
-    const [code, setCode] = useState();
+    const [code, setCode] = useState('');
 
-    console.log("name: "+current_user.name+" number: "+current_user.number+" email: "+current_user.email);
+    //console.log("name: "+current_user.name+" number: "+current_user.number+" email: "+current_user.email);
 
     return (
 
       <View>
-      <Appbar.Header style={{backgroundColor:"lightblue"}}>
-        <Appbar.Content title={current_user.number} style={{alignContent: 'center'}}/>
-      </Appbar.Header>
+      
       <RNP.TextInput
         mode='outlined'
         keyboardType='numeric'
         value={code}
-        maxLength={10}
+        maxLength={6}
         onChangeText={setCode}
         style={{
           marginBottom:5,
           marginTop:Dimensions.get('window').height/4,
           width:Dimensions.get('window').width/1.5,
           left: Dimensions.get('window').width/6,
-
         }}
         placeholder="Enter OTP"
         outlineColor='white'
         activeOutlinedColor='white'
         />
-        <RNP.Button 
+      
+      <RNP.Button
         mode='contained'
         style={{
           width:Dimensions.get('window').width/1.5,
           left: Dimensions.get('window').width/6,
           }}
-         onPress={() =>{
-          confirmCode(code)
-          if(isReady) 
-            {setIsReady(false)
-              signIn() }
-        }}>
+         onPress={async () =>{
+          //If user found in database then log in to contacts screen, else go to create user screen.
+          let confirmed = await confirmCode(code);
+          
+          if ( confirmed ) {
+            console.log("Calling get user" );
+            let response = await getUser(current_user.number);
+          
+            if (response) console.log("getuser successfull");
+            else  console.log("getuser Failed");
+            //setIsReady(false);
+            if(response){    
+              signIn()
+            }
+            else{
+              signUp()
+            }
+          } else {
+            // remain in OTP screen 
+            console.log("Confirm Code failed");
+          }
+        }}
+        
+        >
          Confirm Code
          </RNP.Button>
          <RNP.Button  mode='text' compact style={styles.resend_button} onPress={()=>{}}>Resend OTP </RNP.Button>
@@ -788,48 +838,56 @@ const App: () => Node = ({navigation}) => {
 
     const { input } = React.useContext(AuthContext);
     const { view } = React.useContext(AuthContext);
-    console.log("state.isInput : " + state.isInput);
-
-    console.log("Visible : " + visible);
-    
-
     const { signOut } = React.useContext(AuthContext);
-
-    //console.log("state.isInput : " + state.isInput);
-
-    /*
+    
+    
+   
+    
       React.useLayoutEffect(() => {
         navigation.setOptions({
           headerRight: () => (
-            <Button onPress={() => {
-              setConfirm(null); 
-              signOut()
-            }}
-              title="Sign Out"
-            />
+            <FAB
+          style={styles.fab_sigOut}
+          small
+          icon="logout-variant"
+          onPress={() => {
+            setConfirm(null);
+            signOut()
+          }}
+
+          />
           ),
 
 
         });
       }, [navigation]);
-    */
+    
 
+    
+      React.useEffect(() => {
 
+        //current_user.update(user.name,user._id,user.e_mail,user.auth_token,user.displayName);        
+        g_contacts[0].DisplayName=current_user.name;
+        g_contacts[0].PhoneNumber=current_user.number;
+        
+      },[]);
+
+    
 
 
     // store item.phoneNumber in some variable
 
-    const Item = ({ item }) => (
+    
+      const Item = ({ item }) => (
 
       <Provider>
-        <TouchableOpacity 
+        <TouchableOpacity
             onPress={() => {
                 setSelectedUser(item.PhoneNumber);
-                view()}} 
+                view()}}
             style={[styles.contact_item]}>
           <Card style={[styles.contact_card]} mode='outlined'>
             <Card.Title title={item.DisplayName} subtitle={item.PhoneNumber} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" />} />
-
           </Card>
 
         </TouchableOpacity>
@@ -838,9 +896,9 @@ const App: () => Node = ({navigation}) => {
       );
 
 
-
+      
      const renderItem = ({ item }) => {
-       //console.log(item);
+       console.log(item);
 
         return (
           <Item
@@ -868,18 +926,17 @@ const App: () => Node = ({navigation}) => {
 
       <View style={styles.container}>
             <FlatList
-            bounces={true}
-            data={g_contacts}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.PhoneNumber}
-            onEndReached={()=>{}}
-            style={{width: Dimensions.get("window").width,
-            height: Dimensions.get("window").height-120 ,}}
-            refreshControl={
-              <RefreshControl refreshing={false}/>
-            }
-          />
-
+              bounces={true}
+              data={g_contacts}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.PhoneNumber}
+              onEndReached={()=>{}}
+              style={{width: Dimensions.get("window").width,
+              height: Dimensions.get("window").height-120 }}
+              refreshControl={
+                <RefreshControl refreshing={false}/>
+              }
+            />
         <>
         <FAB
             style={styles.fab}
@@ -892,25 +949,27 @@ const App: () => Node = ({navigation}) => {
 
 
       );
+    
 
   }
-  
+
 
  function HomeTabs({navigation}) {
     const { signOut } = React.useContext(AuthContext);
-    console.log("isReady: "+ isReady);
+    //console.log("isReady: "+ isReady);
+
     React.useLayoutEffect(() => {
       navigation.setOptions({
         headerRight: () => (
           <FAB
           style={styles.fab_sigOut}
           small
-          icon="logout-variant" 
+          icon="logout-variant"
           onPress={() => {
-            setConfirm(null); 
+            setConfirm(null);
             signOut()
           }}
-            
+
           />
         ),
         /*headerLeft: () =>(
@@ -924,12 +983,6 @@ const App: () => Node = ({navigation}) => {
         },*/
       });
     }, [navigation]);
-
-
-
-
-
-
 
     return(
 
@@ -955,14 +1008,14 @@ const App: () => Node = ({navigation}) => {
 
 
     const { back } = React.useContext(AuthContext);
-    
+
     if(selectedUser != '') {
       getPost(selectedUser);
       console.log("Got posts for :" + selectedUser);
       setSelectedUser('');
     }
     console.log(posts.length);
-    
+
     const theme = {
       ...DefaultTheme,
       roundness: 3,
@@ -985,10 +1038,10 @@ const App: () => Node = ({navigation}) => {
               small
               icon="keyboard-backspace"
               onPress={() => {back()
-                setPosts([])}  
+                setPosts([])}
               }
             />
-        ),  
+        ),
       });
     }, [navigation]);
 
@@ -1005,9 +1058,9 @@ const App: () => Node = ({navigation}) => {
             />
           );
         };
-        
 
-        
+
+
         return(
             <View style={styles.swipe_container}>
               <SwiperFlatList
@@ -1026,24 +1079,21 @@ const App: () => Node = ({navigation}) => {
 
 
   function SignUpScreen() {
-
-    const { signIn } = React.useContext(AuthContext);
+    //Beautify text inputs.
     const [number, setNumber] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
- 
+
 
     return (
-      <KeyboardAwareScrollView>
+      <KeyboardAwareScrollView 
+          style={{flex:1}}
+          >
           <View style={styles.container_signUp}>
-
-            <TextInput
-              style={styles.input}
-              keyboardType='default'
-              placeholder="Enter Full Name"
-              onChangeText={(text) => setName( text ) }
-              value={name}
-            />
+            <Image
+              style={styles.logo}
+              source={require('./assets/Virtual-Notice-Board-logos.jpeg')}
+                />
             <TextInput
               keyboardType='numeric'
               style={styles.input}
@@ -1052,37 +1102,36 @@ const App: () => Node = ({navigation}) => {
               onChangeText={(text) => setNumber( text ) }
               value={number}
               />
-            <TextInput
-              keyboardType='email-address'
-              style={styles.input}
-              value={email}
-              placeholder="Enter Email"
-              onChangeText={(text) => setEmail( text ) }
-              />
+            
             <RNP.Button
                 mode='contained'
                 style={styles.button}
                 onPress={() =>
                           {
-                            
-                            
                             current_user.update(name,"+91"+number,email);
-                            g_contacts[0].DisplayName=current_user.name;
-                            g_contacts[0].PhoneNumber=current_user.number;
-                            console.log(number);
-                            console.log((current_user.name));
+                            
                             signInWithPhoneNumber(current_user.number);
                           } }
-                disabled={false}>
-              Sign Up
+                disabled={false} >
+              GET OTP
             </RNP.Button>
-            <Button title="Sign-IN" disabled={false} onPress={signIn} />
+            
         </View>
         </KeyboardAwareScrollView>
     );
   }
 
+  const HeaderBar = ({navigation, back,title}) => {
+        return(
+          <Appbar.Header style={{backgroundColor:"#214463", alignItems:'center'}}>
+            {back? <Appbar.BackAction onPress={back} /> : null}
+            <Appbar.Content title={title} style={{alignContent: 'center'}}/>
+          </Appbar.Header>
+          );                    
+  }
 
+
+ 
 
 
 
@@ -1113,6 +1162,7 @@ const App: () => Node = ({navigation}) => {
             ...prevState,
             isSignout: false,
             isNewUser: true,
+            userToken: action.token,
           };
         case 'SIGN_OUT':
           return {
@@ -1170,25 +1220,38 @@ const App: () => Node = ({navigation}) => {
       // Fetch the token from storage then navigate to our appropriate place
       const bootstrapAsync = async () => {
         let userToken=null;
-
+        
         try {
           // Restore token stored in `SecureStore` or any other encrypted storage
           //userToken = await confirm.confirm(code);
+          
+          const luser = await cache.get("SignedIn_User");
+          const lJsonUser = JSON.parse(luser);
+          userToken = lJsonUser.auth_token;
+          current_user.update(lJsonUser.name,lJsonUser._id,lJsonUser.e_mail,lJsonUser.auth_token,lJsonUser.displayName);
+          
+          //g_contacts[0].DisplayName=current_user.name;
+          //g_contacts[0].PhoneNumber=current_user.number;
         } catch (e) {
           // Restoring token failed
+          //console.log(e);
+          //console.log("No user exists in cache.");
+          userToken = null;
         }
-
+        
         // After restoring token, we may need to validate it in production apps
 
         // This will switch to the App screen or Auth screen and this loading
         // screen will be unmounted and thrown away.
         dispatch({ type: 'RESTORE_TOKEN', token: userToken });
       };
-
-      bootstrapAsync();
+      
       GetContacts();
+      bootstrapAsync();
+      
+      //setTimeout(()=>{Alert.alert('I am appearing...', 'After 10 seconds!');},10000);
       //getPost("+919000945575");
-  }, []
+    }, []
   );
 
   const authContext = React.useMemo(
@@ -1199,16 +1262,18 @@ const App: () => Node = ({navigation}) => {
           // After getting token, we need to persist the token using `SecureStore` or any other encrypted storage
           // In the example, we'll use a dummy token
           //console.log("signIn: " + user);
-          dispatch({ type: 'SIGN_IN', token: "dummy" });
+          dispatch({ type: 'SIGN_IN', token: current_user.token });
         },
-        signOut: () => dispatch({ type: 'SIGN_OUT' }),
+        signOut: async () => {
+          dispatch({ type: 'SIGN_OUT' });
+        },
         signUp: async () => {
           // In a production app, we need to send user data to server and get a token
           // We will also need to handle errors if sign up failed
           // After getting token, we need to persist the token using `SecureStore` or any other encrypted storage
           // In the example, we'll use a dummy token
 
-          dispatch({ type: 'SIGN_UP' });
+          dispatch({ type: 'SIGN_UP', token: current_user.token });
         },
         input: async ()=>{
           dispatch({type: 'INPUT'});
@@ -1238,8 +1303,6 @@ const App: () => Node = ({navigation}) => {
 
 
   if(!state.userToken){
-
-    //console.log("User Token Null, Confirm=" + confirm);
 
     return(
       <AuthContext.Provider value={authContext}>
@@ -1280,7 +1343,8 @@ const App: () => Node = ({navigation}) => {
                   headerTitleStyle: {
                     fontWeight: 'bold',
                   },
-                  }}
+                  header: (props) => <HeaderBar title='Enter OTP' {...props} />
+                }}
                 />
                 )
               }
@@ -1288,6 +1352,30 @@ const App: () => Node = ({navigation}) => {
       </NavigationContainer>
       </AuthContext.Provider>
     );
+  }
+
+  if(state.isNewUser){
+    return(
+      <AuthContext.Provider value={authContext}>
+      <NavigationContainer>
+        <Stack.Navigator>
+          <Stack.Screen name="NewUser" component={CreateUserScreen}
+            options={{
+              headerTitleStyle: {
+                fontWeight: 'bold',
+                color: 'white',
+              },
+              headerTitleAlign: 'center',
+              headerStyle: {
+                backgroundColor: '#84dbfa',
+              }
+              }
+            }
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </AuthContext.Provider>
+    )
   }
 
 
@@ -1320,11 +1408,11 @@ const App: () => Node = ({navigation}) => {
       <NavigationContainer>
         <Stack.Navigator headerBackVisible={true}>
           { !state.isInput ?
-              
+
                 (
                 <Stack.Screen
                   name="Home"
-                  component={HomeTabs}
+                  component={ContactsScreen}
                   options={{
                   title: 'My home',
                   headerStyle: {
@@ -1346,14 +1434,11 @@ const App: () => Node = ({navigation}) => {
                 component={CreatePost}
                 options={{
                 title: 'Create Post',
-                headerStyle: {
-                  backgroundColor: '#84dbfa',
-                },
-                headerTintColor: '#fff',
                 headerTitleStyle: {
                   fontWeight: 'bold',
                 },
                 headerTitleAlign: 'center',
+                header: (props) => <HeaderBar title="Create Post" back={() => {return React.useContext(AuthContext);}} {...props} />
               }}
               />
             )
@@ -1373,14 +1458,22 @@ const styles = StyleSheet.create({
   container_signUp: {
 
     marginTop: 0,
-    padding: 5,
-    paddingTop: 60,
+    padding: 20,
+    
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   container:{
     marginTop: 0,
     padding: 5,
     
+
+  },
+  new_user_container:{
+    marginTop: 0,
+    padding: 5,
+    justifyContent: 'space-around',
+
   },
   swipe_container: {
     flex: 0,
@@ -1443,7 +1536,16 @@ const styles = StyleSheet.create({
     maxWidth: Dimensions.get('window').width-30,
   },
   input: {
-    marginTop: 20,
+    marginTop: 40,
+    paddingHorizontal: 24,
+    fontSize: 20,
+    height: 70,
+    borderRadius: 20,
+    width: Dimensions.get('window').width,
+  },
+  new_input: {
+    position: 'relative',
+    marginTop: 40,
     paddingHorizontal: 24,
     fontSize: 20,
     height: 70,
@@ -1454,11 +1556,33 @@ const styles = StyleSheet.create({
 
   },
   button: {
-    marginTop: 30,
+    marginTop: 15,
+    marginLeft: Dimensions.get('window').width/50,
+    marginRight: Dimensions.get('window').width/20,
     fontSize: 24,
-    width: Dimensions.get('window').width/1.2,
+    
     alignItems: 'center',
     backgroundColor: '#214463',
+  },
+  next_button: {
+    position: 'relative',
+    marginTop: Dimensions.get('window').height/1.85,
+    marginLeft: Dimensions.get('window').width/1.4,
+    
+    flexDirection: 'row',
+    fontSize: 24,
+    alignContent: 'center',
+    backgroundColor: '#214463',
+  },
+  skip_button: {
+    marginTop: Dimensions.get('window').height/1.18,
+    position: 'absolute',
+    color: '#000000',
+    marginRight: Dimensions.get('window').width/2,
+    fontSize: 24,   
+    alignSelf: 'flex-start',
+    flexDirection: 'column-reverse',
+    
   },
   resend_button:{
     fontSize: 24,
@@ -1468,9 +1592,11 @@ const styles = StyleSheet.create({
     marginLeft: Dimensions.get('window').width/1.7,
   },
   logo: {
-    marginLeft: 72,
-    width: 200,
-    height: 200,
+    marginLeft: Dimensions.get('window').width/40,
+    marginBottom: 20,
+    marginTop:5,
+    width: 300,
+    height: 300,
 
   },
   roundButton: {
@@ -1523,3 +1649,6 @@ const styles = StyleSheet.create({
 });
 
 export default App;
+
+
+/*<Button title="Sign-IN" disabled={true} onPress={signIn} />*/

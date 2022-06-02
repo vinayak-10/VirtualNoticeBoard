@@ -4,10 +4,10 @@ import org.apache.tools.ant.taskdefs.condition.Os
 
 buildscript {
     ext {
-        buildToolsVersion = "31.0.0"
+        buildToolsVersion = "30.0.2"
         minSdkVersion = 26
-        compileSdkVersion = 31
-        targetSdkVersion = 31
+        compileSdkVersion = 28
+        targetSdkVersion = 28
         kotlin_version = '1.5.0'
 
         if (System.properties['os.arch'] == "aarch64") {
