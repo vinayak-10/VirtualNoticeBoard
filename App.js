@@ -63,6 +63,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import * as icon from 'react-native-vector-icons/FontAwesome';
 
 import { Cache } from "react-native-cache";
+import { SearchBar } from 'react-native-elements';
 
 
 
@@ -185,8 +186,7 @@ const App: () => Node = ({navigation}) => {
   const [post, setPost] = useState(null);
   //const [usr, setUsr] = useState();
 
-
-  //const [edit, setEdit] = useState('');
+  
 /*
   const [stat, setStat] = React.useState({ open: false });
   const { open } = stat;
@@ -194,9 +194,10 @@ const App: () => Node = ({navigation}) => {
 */
 
   const [visible, setVisible] = React.useState(false);
+  
 
-  const openMenu = () => setVisible(true);
-  const closeMenu = () => setVisible(false);
+  //const openMenu = () => setVisible(true);
+  //const closeMenu = () => setVisible(false);
   //const PERSISTENCE_KEY = 'NAVIGATION_STATE_V1';
   //const [isReady, setIsReady] = React.useState(false);
 
@@ -293,10 +294,13 @@ const App: () => Node = ({navigation}) => {
             if (jsonResponse.Response==200) {
 
             let resp_arr = [];
-            
+            let resp = {};
               jsonResponse.p.forEach((element,i) => {
-
-                  resp_arr.push(html+"<body>"+element.Post+"</body>");
+                  resp["_id"] = element._id;
+                  resp["Author"] = element.Author;
+                  resp["CreatedOn"] = element.CreatedOn;
+                  resp["Post"] = html+"<body>"+element.Post+"</body>";
+                  resp_arr.push(resp);
                 });
               console.log(resp_arr);
               setPosts(resp_arr);
@@ -477,16 +481,14 @@ const App: () => Node = ({navigation}) => {
             //console.log("Printing cs: \n" + cs);
             let contactsObj = [];
             let name_array = [];
-
             cs.forEach((contact, i) => {
                 let contactObj = {};
                 contactObj.DisplayName = contact.givenName + ' ' + contact.familyName;
                 name_array.push(contactObj.DisplayName);
-                
+                contactObj.index = i+1;    
                 contact.phoneNumbers.forEach((num, i) => {
                       //console.log(number.number);
-                      contactObj.PhoneNumber = num.number;
-                      contactObj.index = i;
+                      contactObj.PhoneNumber = num.number;      
                   });        // end foreach
               contactsObj.push(contactObj);
             }); // end foreach
@@ -497,7 +499,7 @@ const App: () => Node = ({navigation}) => {
               var x = a[key]; var y = b[key];
               return ((x < y) ? -1 : ((x > y) ? 1 : 0));
             });
-            setGcontacts([{"DisplayName":current_user.name,"PhoneNumber":current_user.number}].concat(contactsObj));//Set first element to be the use in g_contacts array.
+            setGcontacts([{"DisplayName":current_user.name,"PhoneNumber":current_user.number,"index":0}].concat(contactsObj));//Set first element to be the use in g_contacts array.
             //console.log("Everything run successfully in GetContacts: \n" + JSON.stringify(g_contacts) + "\n"+ JSON.stringify(contactsObj));
 
           
@@ -869,8 +871,22 @@ const App: () => Node = ({navigation}) => {
   }
 
 
+ 
 
-  function ContactsScreen({navigation}) {
+
+
+  /*
+            <SearchBar
+                round
+                searchIcon={{ size: 24 }}
+                onChangeText={(text) => searchFilterFunction(text)}
+                onClear={(text) => searchFilterFunction('')}
+                placeholder="Search..."
+                value={search}
+                lightTheme
+              />*/
+
+  function ContactsScreen({navigation, route}) {
 
     //Use Contacts array to populate FlatList.
     //Map Contacts to their posts through getUser
@@ -879,44 +895,61 @@ const App: () => Node = ({navigation}) => {
     const { input } = React.useContext(AuthContext);
     const { view } = React.useContext(AuthContext);
     const { signOut } = React.useContext(AuthContext);
+    const [search, setSearch] = useState('');
+    const [filteredDataSource, setFilteredDataSource] = useState([]);
     
     
-   
-    
+    /*
       React.useLayoutEffect(() => {
         navigation.setOptions({
-          headerRight: () => (
-            <FAB
-          style={styles.fab_sigOut}
-          small
-          icon="logout-variant"
-          onPress={async () => {
-            setConfirm(null);
-            await cache.clearAll();
-            signOut()
-          }}
-
-          />
-          ),
-
-
+          headerSearchBarOptions: {
+            onChangeText: (event) => searchFilterFunction(event.nativeEvent.text),
+            onClear:(event) => searchFilterFunction(''),
+            hideNavigationBar: true,
+            disableBackButtonOverride: false,
+          },
+          
+          
         });
       }, [navigation]);
-    
-
+    */
     
       React.useEffect(() => {
 
         //current_user.update(user.name,user._id,user.e_mail,user.auth_token,user.displayName);        
         g_contacts[0].DisplayName=current_user.name;
         g_contacts[0].PhoneNumber=current_user.number;
+        setFilteredDataSource(g_contacts);
         
       },[]);
-
+      
     
 
 
     // store item.phoneNumber in some variable
+
+    const searchFilterFunction = (text) => {
+      // Check if searched text is not blank
+      if (text) {
+        // Inserted text is not blank
+        // Filter the masterDataSource
+        // Update FilteredDataSource
+        const newData = g_contacts.filter(function (item) {
+          const itemData = item.DisplayName
+            ? item.DisplayName.toUpperCase()
+            : ''.toUpperCase();
+          const textData = text.toUpperCase();
+          return itemData.indexOf(textData) > -1;
+        });
+        setFilteredDataSource(newData);
+        setSearch(text);
+      } else {
+        // Inserted text is blank
+        // Update FilteredDataSource with masterDataSource
+        setFilteredDataSource(g_contacts);
+        setSearch(text);
+      }
+    };
 
     
       class Item extends React.PureComponent {
@@ -955,6 +988,8 @@ const App: () => Node = ({navigation}) => {
         );
     };
 
+    
+
     const _onPress = (item)=>{
       ToastAndroid.showWithGravityAndOffset(
         `${item.title}  called`,
@@ -968,30 +1003,53 @@ const App: () => Node = ({navigation}) => {
 
 
       return(
-
-      <View style={styles.container}>
+      <Provider>
+        <View style={styles.container}>
             <FlatList
               bounces={true}
-              data={g_contacts}
-              renderItem={renderItem}
+              data={filteredDataSource}
+              renderItem={({item}) => 
+                <Item
+                  key={item.index}
+                  item={item}
+                  style={{paddingHorizontal:0, marginHorizontal:10,width: Dimensions.get("window").width / 2.6,
+                  height: Dimensions.get("window").width / 2.6,}}
+                />
+              }
               keyExtractor={(item) => item.index}
               initialNumToRender={10}
               onEndReached={()=>{}}
+              contentInsetAdjustmentBehavior="automatic"
+              ListHeaderComponent={
+                visible?
+                  <SearchBar
+                    round
+                    searchIcon={{ size: 24 }}
+                    onChangeText={(text) => searchFilterFunction(text)}
+                    onClear={(text) => searchFilterFunction('')}
+                    placeholder="Search..."
+                    value={search}
+                    lightTheme
+                    onCancel={()=>{setVisible(false)}}
+                    showCancel={true}
+                  /> : null  
+              }
               style={{width: Dimensions.get("window").width,
               height: Dimensions.get("window").height-120 }}
               refreshControl={
                 <RefreshControl refreshing={false}/>
               }
             />
-        <>
-        <FAB
-            style={styles.fab}
-            medium
-            icon="plus"
-            onPress={() => input()}
-          />
-        </>
-    </View>
+            <>
+            <FAB
+                style={styles.fab}
+                medium
+                icon="plus"
+                onPress={() => input()}
+              />
+            </>
+          </View>
+        </Provider>
 
 
       );
@@ -1000,51 +1058,27 @@ const App: () => Node = ({navigation}) => {
   }
 
 
- function HomeTabs({navigation}) {
-    const { signOut } = React.useContext(AuthContext);
-    //console.log("isReady: "+ isReady);
-
-    React.useLayoutEffect(() => {
-      navigation.setOptions({
-        headerRight: () => (
-          <FAB
-          style={styles.fab_sigOut}
-          small
-          icon="logout-variant"
-          onPress={() => {
-            setConfirm(null);
-            signOut()
-          }}
-
-          />
-        ),
-        /*headerLeft: () =>(
-          confirm.verificationId
-        )
-        headerSearchBarOptions: {
-          // search bar options
-          onChangeText: (event) => setEdit(event.nativeEvent.text),
-
-          textColor: '#fff',
-        },*/
-      });
-    }, [navigation]);
-
+ function HomeDrawer({navigation}) {
+   
     return(
 
-      <Tab.Navigator screenOptions = {{
+      <Drawer.Navigator screenOptions = {{
         showLabel: false,
         inactiveTintColor: '#2D3038',
         activeTintColor: '#FFFFFF',
         style: {
           height: '10%',
-          backgroundColor: '#11b6f2',
-        }
-      }}
-      >
-        <Tab.Screen name="Users" component={ContactsScreen} />
-        <Tab.Screen name="Feed" component={HomeScreen} />
-      </Tab.Navigator>
+          backgroundColor: '#214463',
+        },
+        headerShown: true,
+        header: (props) => <HeaderBar title='Home' isBack={false} isSearch={true}  isDrawer={true} {...props} />
+
+      }}>
+        <Drawer.Screen name="Users" component={ContactsScreen} />
+        <Drawer.Screen name="Feed" component={HomeScreen} />
+      </Drawer.Navigator>
+
+
     );
 
 }
@@ -1088,6 +1122,7 @@ const App: () => Node = ({navigation}) => {
               }
             />
         ),
+        title: posts[0].Author,  
       });
     }, [navigation]);
 
@@ -1106,11 +1141,12 @@ const App: () => Node = ({navigation}) => {
             //Allow local file access with allowFileAccess prop (use local file uri to render post html)
             <WebView
               originWhitelist={['*']}
-              source={{html: item}}
+              source={{html: item.Post}}
               containerStyle={{width:Dimensions.get('window').width,
                       height: Dimensions.get('window').height,
                     flex: 1, }}
             />
+            
           );
         };
 
@@ -1127,6 +1163,18 @@ const App: () => Node = ({navigation}) => {
                 data={posts}
                 renderItem={Page}
               />
+              <Appbar style={styles.bottom}>
+                <Appbar.Action
+                  icon="archive"
+                  onPress={() => console.log('Pressed archive')}
+                />
+                <Appbar.Action icon="mail" onPress={() => console.log('Pressed mail')} />
+                <Appbar.Action icon="label" onPress={() => console.log('Pressed label')} />
+                <Appbar.Action
+                  icon="delete"
+                  onPress={() => console.log('Pressed delete')}
+                />
+              </Appbar>
             </View>
         );
   }
@@ -1180,13 +1228,17 @@ const App: () => Node = ({navigation}) => {
     );
   }
 
-  const HeaderBar = ({navigation, isBack, title}) => {
+  const HeaderBar = ({navigation, isBack, isSearch, isDrawer, title}) => {
         const {back} = React.useContext(AuthContext);
         return(
+          
           <Appbar.Header style={{backgroundColor:"#214463", alignItems:'center'}}>
+            {isDrawer? <Appbar.Action icon="account-details" onPress={() => navigation.toggleDrawer()}  /> : null}
             {isBack? <Appbar.BackAction onPress={back} /> : null}
             <Appbar.Content title={title} style={{alignContent: 'center'}}/>
+            {isSearch?<Appbar.Action icon="magnify" onPress={() => setVisible(!visible)} /> : null}
           </Appbar.Header>
+         
           );                    
   }
 
@@ -1481,19 +1533,23 @@ const App: () => Node = ({navigation}) => {
                 (
                 <Stack.Screen
                   name="Home"
-                  component={ContactsScreen}
+                  component={HomeDrawer}
                   options={{
-                  title: 'My home',
-                  headerStyle: {
-                    backgroundColor: '#FFF',
+                    title: 'Home',
+                  // When logging out, a pop animation feels intuitive
+                   animationTypeForReplace: state.isSignout ? 'pop' : 'push',
+                   headerTitleAlign: 'center',
+                   headerStyle: {
+                    backgroundColor: '#214463',
                   },
-                  headerTintColor: '#214463',
+                  headerTintColor: '#fff',
                   headerTitleStyle: {
                     fontWeight: 'bold',
                   },
-                  headerTitleAlign: 'center',
-                  }
-                }
+                  headerShown: false,
+                  header: (props) => <HeaderBar title='Home' isBack={false} isSearch={true} {...props} />
+                }}
+                  
               />
               )
               :
@@ -1720,4 +1776,22 @@ const styles = StyleSheet.create({
 export default App;
 
 
-/*<Button title="Sign-IN" disabled={true} onPress={signIn} />*/
+/*<Button title="Sign-IN" disabled={true} onPress={signIn} />
+options={{
+                  title: 'My home',
+                  headerStyle: {
+                    backgroundColor: '#FFF',
+                  },
+                  headerTintColor: '#214463',
+                  headerTitleStyle: {
+                    fontWeight: 'bold',
+                  },
+                  headerTitleAlign: 'center',
+                  }
+                }
+
+                            {isSearch?<Appbar.Action icon="magnify" onPress={() => {}} /> : null}
+
+
+
+*/
