@@ -39,7 +39,7 @@ import { WebView } from "react-native-webview";
 import {createStackNavigator} from '@react-navigation/stack';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerItem, DrawerContentScrollView } from '@react-navigation/drawer';
 
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import Animated,{ Value } from 'react-native-reanimated';
@@ -51,6 +51,8 @@ import * as RNP from 'react-native-paper';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 
 import * as icon from 'react-native-vector-icons/FontAwesome';
+import {MaterialCommunityIcons} from "react-native-vector-icons";
+import AwesomeIcon from 'react-native-vector-icons/FontAwesome';
 
 import { Cache } from "react-native-cache";
 import { SearchBar } from 'react-native-elements';
@@ -67,6 +69,9 @@ import {
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
 
+import OTPInputView from '@twotalltotems/react-native-otp-input';
+//import OTPInput from 'react-native-otp';
+
 
 
 const App: () => Node = ({navigation}) => {
@@ -74,15 +79,34 @@ const App: () => Node = ({navigation}) => {
     const [hid ,setHid] = useState('');
     const [search ,setSearch] = useState('');
     const [visible, setVisible] = React.useState(false);
+    const [code, setCode] = useState('');
 
     const openMenu = () => setVisible(true);
 
     const closeMenu = () => setVisible(false);
     const [filteredDataSource, setFilteredDataSource] = useState([]);
 
+    const handleOTPChange = (otp) => {
+      setCode(otp);
+    };
 
-   
+    const clearOTP = () => {
+      setCode('');
+    };
 
+    const autoFill = () => {
+      setCode( '221198' );
+    };
+
+
+
+      /*
+
+
+      <Image
+        style={styles.logo}
+        source={require('./assets/Virtual-Notice-Board-logos.jpeg')}
+          />
         const DATA = [
         {
             id: "bd7acbea-c1b1-46c2-aed5-3ad53abb28ba",
@@ -215,7 +239,7 @@ const App: () => Node = ({navigation}) => {
                   <Divider />
                   <Menu.Item onPress={() => {}} title="Item 3" />
                 </Menu>
-                
+
               </Appbar.Header>
               <SearchBar
                 round
@@ -232,7 +256,7 @@ const App: () => Node = ({navigation}) => {
                 renderItem={renderItem}
                 keyExtractor={(item) => item.id}
                 extraData={hid}
-                
+
                 contentInsetAdjustmentBehavior="automatic"
                 style={{width: Dimensions.get("window").width,
                 height: Dimensions.get("window").height-120 ,}}
@@ -247,36 +271,157 @@ const App: () => Node = ({navigation}) => {
               />
             </>
         </View>
-        </Provider>
+        </Provider><OTPInput
+          title="Enter OTP"
+          type="outline"
+          keyboardType="number-pad"
+          numberOfInputs={6}
+          onFilledCode={code => {
+            console.log(code);
+          }}
+        /><OtpInputs
+          handleChange={(code) => console.log(code)}
+          numberOfInputs={6}
+          autofillFromClipboard={false}
+        /><OTPInput
+            value={code}
+            onChange={handleOTPChange}
+            tintColor="#FB6C6A"
+            offTintColor="#BBBCBE"
+            otpLength={6}
+          />
+
+          <Button onPress={clearOTP} title="Clear" />
+          <Button onPress={autoFill} title="Auto fill" />
 
         );
 
-    
+        return(
+        <View style={styles.container}>
+          <OTPInputView
+            style={{height: 200,color: '#000000', }}
+            pinCount={6}
+            code={code} //You can supply this prop or not. The component will be used as a controlled / uncontrolled component respectively.
+            onCodeChanged = {code => { setCode(code)}}
+            autoFocusOnLoad
+            codeInputFieldStyle={styles.underlineStyleBase}
+            codeInputHighlightStyle={styles.underlineStyleHighLighted}
+            onCodeFilled = {(code => {
+                console.log(`Code is ${code}, you are good to go!`)
+            })}
+           />
+
+        </View>
+      );
+    */
+
+      function OTPScreen({navigation}) {
+        return(
+          <View style={styles.container}>
+            <OTPInputView
+              style={{height: 200,color: '#000000', }}
+              pinCount={6}
+              code={code} //You can supply this prop or not. The component will be used as a controlled / uncontrolled component respectively.
+              onCodeChanged = {code => { setCode(code)}}
+              autoFocusOnLoad
+              codeInputFieldStyle={styles.underlineStyleBase}
+              codeInputHighlightStyle={styles.underlineStyleHighLighted}
+              onCodeFilled = {(code => {
+                  console.log(`Code is ${code}, you are good to go!`)
+              })}
+             />
+
+          </View>
+        );
+      }
+
+      const DrawerContent = (props) =>(
+            <DrawerContentScrollView {...props}>
+              <View style={styles.drawerContent}>
+                <RNP.Drawer.Section style={styles.drawerSection}>
+                  <RNP.Drawer.Item
+                    icon="account-outline"
+                    label="Profile"
+                    onPress={() => {}}
+                  />
+                </RNP.Drawer.Section>
+              </View>
+            </DrawerContentScrollView>
+        );
+
+
+      const Drawer = createDrawerNavigator();
+
+      return(
+        <Provider>
+          <NavigationContainer>
+            <Drawer.Navigator drawerContent={(props) => <DrawerContent {...props}/>} >
+              <Drawer.Screen name="OTP" component={OTPScreen} />
+            </Drawer.Navigator>
+          </NavigationContainer>
+        </Provider>
+
+
+      );
+
+
+
 
 
 }
 
 
 const styles = StyleSheet.create({
+
+  drawerContent: {
+    flex: 1,
+  },
+
+  drawerSection: {
+    marginTop: 15,
+  },
+  borderStyleBase: {
+    width: 30,
+    height: 45
+  },
+
+  borderStyleHighLighted: {
+    borderColor: "#03DAC6",
+  },
+
+  underlineStyleBase: {
+    width: 30,
+    height: 45,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    fontSize: 24,
+    color: '#000000',
+  },
+
+  underlineStyleHighLighted: {
+    borderColor: "#03DAC6",
+    color: '#000000'
+  },
     container_signUp: {
-  
+
       marginTop: 0,
       padding: 20,
-      
+
       alignItems: 'center',
       justifyContent: 'space-between',
     },
     container:{
       marginTop: 0,
       padding: 5,
-      
-  
+      flex: 1,
+
+
     },
     new_user_container:{
       marginTop: 0,
       padding: 5,
       justifyContent: 'space-around',
-  
+
     },
     swipe_container: {
       flex: 0,
@@ -305,13 +450,13 @@ const styles = StyleSheet.create({
     tinyLogo: {
       width: 100,
       height: 100,
-  
+
       flex: 1,
     },
     text: {
       fontSize: 20,
     },
-  
+
     home_item: {
       padding: 20,
       height: 250,
@@ -356,14 +501,14 @@ const styles = StyleSheet.create({
       width: Dimensions.get('window').width,
     },
     otp: {
-  
+
     },
     button: {
       marginTop: 15,
       marginLeft: Dimensions.get('window').width/50,
       marginRight: Dimensions.get('window').width/20,
       fontSize: 24,
-      
+
       alignItems: 'center',
       backgroundColor: '#214463',
     },
@@ -371,7 +516,7 @@ const styles = StyleSheet.create({
       position: 'relative',
       marginTop: Dimensions.get('window').height/1.85,
       marginLeft: Dimensions.get('window').width/1.4,
-      
+
       flexDirection: 'row',
       fontSize: 24,
       alignContent: 'center',
@@ -382,10 +527,10 @@ const styles = StyleSheet.create({
       position: 'absolute',
       color: '#000000',
       marginRight: Dimensions.get('window').width/2,
-      fontSize: 24,   
+      fontSize: 24,
       alignSelf: 'flex-start',
       flexDirection: 'column-reverse',
-      
+
     },
     resend_button:{
       fontSize: 24,
@@ -400,7 +545,7 @@ const styles = StyleSheet.create({
       marginTop:5,
       width: 300,
       height: 300,
-  
+
     },
     roundButton: {
       width: 50,
@@ -418,7 +563,7 @@ const styles = StyleSheet.create({
       bottom: 0,
       backgroundColor: '#214463',
     },
-  
+
     fab_post: {
       position: 'relative',
       margin: 16,
@@ -427,7 +572,7 @@ const styles = StyleSheet.create({
       left: -20,
       backgroundColor: '#214463',
     },
-  
+
     fab_sigOut: {
       position: 'relative',
       margin: 16,
@@ -436,7 +581,7 @@ const styles = StyleSheet.create({
       left: 20,
       backgroundColor: '#214463',
     },
-  
+
     root: {
       flex: 2,
       marginTop: StatusBar.currentHeight || 0,
@@ -446,7 +591,7 @@ const styles = StyleSheet.create({
       flex: 1,
       padding: 0,
       borderColor: 'gray',
-  
+
       backgroundColor: 'white',
     },
 });

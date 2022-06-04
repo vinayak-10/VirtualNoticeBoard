@@ -35,6 +35,7 @@
    PermissionsAndroid,
    Alert,
    BackHandler,
+   ImageBackground,
  } from 'react-native';
 
 
@@ -48,7 +49,7 @@ import { WebView } from "react-native-webview";
 import {createStackNavigator} from '@react-navigation/stack';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerItem, DrawerContentScrollView } from '@react-navigation/drawer';
 
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import Animated,{ Value } from 'react-native-reanimated';
@@ -56,7 +57,7 @@ import 'react-native-gesture-handler';
 
 import Contacts from 'react-native-contacts';
 
-import { FAB, DefaultTheme, Portal, Provider, Card, Appbar,  Menu, Divider, Avatar, Title, Paragraph } from 'react-native-paper';
+import { FAB, DefaultTheme, Portal, Caption, Provider, Card, Appbar,  Menu, Divider, Avatar, Title, Paragraph } from 'react-native-paper';
 import * as RNP from 'react-native-paper';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 
@@ -64,6 +65,8 @@ import * as icon from 'react-native-vector-icons/FontAwesome';
 
 import { Cache } from "react-native-cache";
 import { SearchBar } from 'react-native-elements';
+import OTPInput from 'react-native-otp';
+
 
 
 
@@ -78,6 +81,8 @@ import {
 } from 'react-native/Libraries/NewAppScreen';
 
 import auth from '@react-native-firebase/auth';
+
+import { Divider as ElementsDivider } from "react-native-elements";
 
 
 
@@ -186,7 +191,7 @@ const App: () => Node = ({navigation}) => {
   const [post, setPost] = useState(null);
   //const [usr, setUsr] = useState();
 
-  
+
 /*
   const [stat, setStat] = React.useState({ open: false });
   const { open } = stat;
@@ -194,7 +199,7 @@ const App: () => Node = ({navigation}) => {
 */
 
   const [visible, setVisible] = React.useState(false);
-  
+
 
   //const openMenu = () => setVisible(true);
   //const closeMenu = () => setVisible(false);
@@ -226,7 +231,7 @@ const App: () => Node = ({navigation}) => {
 
   const getUser = (num) => new Promise(async resolve => {
       //Need to get all users to display contacts.
-       
+
       try{
         console.log("Fetching profile");
          const response = await fetch(URL_PROFILE+'get',{
@@ -289,7 +294,7 @@ const App: () => Node = ({navigation}) => {
               return response.json();
             })
           .then((jsonResponse) => {
-            console.log(jsonResponse);
+            console.log("Log of jsonResponse from getPost: " + JSON.stringify(jsonResponse));
 
             if (jsonResponse.Response==200) {
 
@@ -300,10 +305,14 @@ const App: () => Node = ({navigation}) => {
                   resp["Author"] = element.Author;
                   resp["CreatedOn"] = element.CreatedOn;
                   resp["Post"] = html+"<body>"+element.Post+"</body>";
-                  resp_arr.push(resp);
+                  resp_arr[resp_arr.length] = resp;
+                  //console.log("\nCalling inside forEach : \n" + JSON.stringify(element) + "\n");
+                  //console.log("Logging Response arraya from get post: \n" + JSON.stringify(resp_arr));
+                  resp={};
                 });
-              console.log(resp_arr);
+
               setPosts(resp_arr);
+              resp_arr = [];
             }
             else{
               console.log("User has no posts available or the user is not registered.");
@@ -313,6 +322,44 @@ const App: () => Node = ({navigation}) => {
           .catch((err) => {
               console.log(err);
           });
+  }
+
+  function deletePost(postId,createdOn,author){
+    fetch(URL_POST+'delete',{
+      method: 'POST',
+      headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+      body: JSON.stringify({
+          _id: postId,
+          CreatedOn: createdOn,
+          Author: author,
+      })
+      })
+      .then((response) => {
+          //console.log(response);
+          return response.json();
+        })
+      .then((jsonResponse) => {
+        console.log(jsonResponse);
+
+        if (jsonResponse.Response==200) {
+            posts.forEach((element,i) => {
+              if(element._id === postId){
+                  posts.splice(i,i);
+              }
+            });
+            console.log("Post was successfully deleted.");
+        }
+        else{
+          console.log("Something went wrong.");
+
+        }
+        })
+      .catch((err) => {
+          console.log(err);
+      });
   }
 
 
@@ -365,7 +412,7 @@ const App: () => Node = ({navigation}) => {
     //const URL = "http://editor.dwall.xyz/?Author="+current_user.number.substring(3);
 
     //console.log("state.isInput : " + state.isInput);
-    
+
     React.useLayoutEffect(() => {
       navigation.setOptions({
         headerRight: () => (
@@ -398,7 +445,7 @@ const App: () => Node = ({navigation}) => {
         "hardwareBackPress",
         back
       );
-  
+
       return () => backHandler.remove();
     }, []);
     /*
@@ -418,7 +465,7 @@ const App: () => Node = ({navigation}) => {
       <KeyboardAwareScrollView style={styles.container}>
         <WebView
           originWhitelist={['*']}
-          
+
           onMessage={(event) => {
             alert(event.nativeEvent.data);
           }}
@@ -463,8 +510,8 @@ const App: () => Node = ({navigation}) => {
 
 
   const GetContacts = async () => {
-    
-      
+
+
       try{
       const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
                   {
@@ -473,10 +520,10 @@ const App: () => Node = ({navigation}) => {
                     'buttonPositive': 'Please accept bare mortal'
                   }
                 );
-        if(permission === PermissionsAndroid.RESULTS.GRANTED)                
+        if(permission === PermissionsAndroid.RESULTS.GRANTED)
         {
           let cs = await Contacts.getAllWithoutPhotos();
-            
+
             // work with contacts
             //console.log("Printing cs: \n" + cs);
             let contactsObj = [];
@@ -485,10 +532,10 @@ const App: () => Node = ({navigation}) => {
                 let contactObj = {};
                 contactObj.DisplayName = contact.givenName + ' ' + contact.familyName;
                 name_array.push(contactObj.DisplayName);
-                contactObj.index = i+1;    
+                contactObj.index = i+1;
                 contact.phoneNumbers.forEach((num, i) => {
                       //console.log(number.number);
-                      contactObj.PhoneNumber = num.number;      
+                      contactObj.PhoneNumber = num.number;
                   });        // end foreach
               contactsObj.push(contactObj);
             }); // end foreach
@@ -499,11 +546,11 @@ const App: () => Node = ({navigation}) => {
               var x = a[key]; var y = b[key];
               return ((x < y) ? -1 : ((x > y) ? 1 : 0));
             });
-            setGcontacts([{"DisplayName":current_user.name,"PhoneNumber":current_user.number,"index":0}].concat(contactsObj));//Set first element to be the use in g_contacts array.
+            setGcontacts(contactsObj);//Set first element to be the use in g_contacts array.
             //console.log("Everything run successfully in GetContacts: \n" + JSON.stringify(g_contacts) + "\n"+ JSON.stringify(contactsObj));
 
-          
-          
+
+
         } // end then
         else{
           console.log("Calling from GetContacts else \n" + "Permission not granted");
@@ -512,7 +559,7 @@ const App: () => Node = ({navigation}) => {
       catch(err){
         console.log("Calling from GetContacts last catch() \n"+err);
       }
-        
+
   };
 
 
@@ -531,7 +578,7 @@ const App: () => Node = ({navigation}) => {
   function SplashScreen() {
     return (
       <View style={{justifyContent:'space-evenly', alignItems:'center',flex: 1}}>
-        <Image 
+        <Image
           source={require('./assets/Virtual-Notice-Board-logos.jpeg')}
           style={styles.logo} />
         <RNP.ActivityIndicator animating={true} color={RNP.Colors.red800} size='large' />
@@ -567,10 +614,10 @@ const App: () => Node = ({navigation}) => {
         //console.log("Code confirmed for user:" + number + " Name:" + name + " Display Name:" + displayName + " email:" + email );
 
         //addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
-        
-        
+
+
         resolve(true);
-        
+
 
       }
     } catch (error) {
@@ -645,7 +692,7 @@ const App: () => Node = ({navigation}) => {
           </Card>
         </TouchableOpacity>
 
-      );
+    );
 
      const renderItem = ({ item }) => {
         const backgroundColor = item.id === hid ? "#228B22" : "#FFFFFF";
@@ -710,7 +757,7 @@ const App: () => Node = ({navigation}) => {
 
 
 
-  
+
   function CreateUserScreen({ navigation }) {
 
     const { signIn } = React.useContext(AuthContext);
@@ -727,11 +774,11 @@ const App: () => Node = ({navigation}) => {
         "hardwareBackPress",
           backStart
       );
-  
+
       return () => backHandler.remove();
     }, []);
-   
-    
+
+
 
     return (
 
@@ -770,7 +817,7 @@ const App: () => Node = ({navigation}) => {
                         luser["e_mail"] = current_user.email;
                         luser["auth_token"] = current_user.token;
                         luser["auth_type"] = "Google FireBase";
-                       
+
                        await cache.set("SignedIn_User", JSON.stringify(luser));
                        let c = await cache.get("SignedIn_User");
                        console.log("Calling from Create User function: \n"+c);
@@ -781,7 +828,7 @@ const App: () => Node = ({navigation}) => {
             Next
             </RNP.Button>
         </View>
-    
+
       </KeyboardAwareScrollView>
     );
   }
@@ -790,10 +837,21 @@ const App: () => Node = ({navigation}) => {
 
   function OTPScreen() {
     //Add resend OTP functionality, Hide/Disable OTP Text Box until required
-  
+
     const { signUp } = React.useContext(AuthContext);
     const { signIn } = React.useContext(AuthContext);
     const [code, setCode] = useState('');
+    const handleOTPChange = (otp) => {
+      setCode(otp);
+    };
+
+    const clearOTP = () => {
+      setCode('');
+    };
+
+    const autoFill = () => {
+      setCode( '221198' );
+    };
 
     useEffect(() => {
 
@@ -805,7 +863,7 @@ const App: () => Node = ({navigation}) => {
         "hardwareBackPress",
         backStart
       );
-  
+
       return () => backHandler.remove();
     }, []);
 
@@ -814,77 +872,56 @@ const App: () => Node = ({navigation}) => {
     return (
 
       <View>
-      
-      <RNP.TextInput
-        mode='outlined'
-        keyboardType='numeric'
-        value={code}
-        maxLength={6}
-        onChangeText={setCode}
-        style={{
-          marginBottom:5,
-          marginTop:Dimensions.get('window').height/4,
-          width:Dimensions.get('window').width/1.5,
-          left: Dimensions.get('window').width/6,
-        }}
-        placeholder="Enter OTP"
-        outlineColor='white'
-        activeOutlinedColor='white'
+
+        <OTPInput
+          value={code}
+          onChange={handleOTPChange}
+          cellStyle={{marginBottom:5,
+            marginTop:Dimensions.get('window').height/4,}}
+          tintColor="#FB6C6A"
+          offTintColor="#BBBCBE"
+          otpLength={6}
         />
-      
-      <RNP.Button
-        mode='contained'
-        style={{
-          width:Dimensions.get('window').width/1.5,
-          left: Dimensions.get('window').width/6,
+
+        <RNP.Button
+          mode='contained'
+          style={{
+            width:Dimensions.get('window').width/1.5,
+            left: Dimensions.get('window').width/6,
+            }}
+          onPress={async () =>{
+            //If user found in database then log in to contacts screen, else go to create user screen.
+            let confirmed = await confirmCode(code);
+
+            if ( confirmed ) {
+              console.log("Calling get user" );
+              let response = await getUser(current_user.number);
+
+              if (response) console.log("getuser successfull");
+              else  console.log("getuser Failed");
+              //setIsReady(false);
+              if(response){
+                signIn()
+              }
+              else{
+                signUp()
+              }
+            } else {
+              // remain in OTP screen
+              console.log("Confirm Code failed");
+            }
           }}
-         onPress={async () =>{
-          //If user found in database then log in to contacts screen, else go to create user screen.
-          let confirmed = await confirmCode(code);
-          
-          if ( confirmed ) {
-            console.log("Calling get user" );
-            let response = await getUser(current_user.number);
-          
-            if (response) console.log("getuser successfull");
-            else  console.log("getuser Failed");
-            //setIsReady(false);
-            if(response){    
-              signIn()
-            }
-            else{
-              signUp()
-            }
-          } else {
-            // remain in OTP screen 
-            console.log("Confirm Code failed");
-          }
-        }}
-        
-        >
+          >
          Confirm Code
-         </RNP.Button>
-         <RNP.Button  mode='text' compact style={styles.resend_button} onPress={()=>{}}>Resend OTP </RNP.Button>
+        </RNP.Button>
+        <RNP.Button  mode='text' compact style={styles.resend_button} onPress={()=>{}}>Resend OTP </RNP.Button>
       </View>
 
     );
   }
 
 
- 
 
-
-
-  /*
-            <SearchBar
-                round
-                searchIcon={{ size: 24 }}
-                onChangeText={(text) => searchFilterFunction(text)}
-                onClear={(text) => searchFilterFunction('')}
-                placeholder="Search..."
-                value={search}
-                lightTheme
-              />*/
 
   function ContactsScreen({navigation, route}) {
 
@@ -897,8 +934,8 @@ const App: () => Node = ({navigation}) => {
     const { signOut } = React.useContext(AuthContext);
     const [search, setSearch] = useState('');
     const [filteredDataSource, setFilteredDataSource] = useState([]);
-    
-    
+
+
     /*
       React.useLayoutEffect(() => {
         navigation.setOptions({
@@ -908,22 +945,20 @@ const App: () => Node = ({navigation}) => {
             hideNavigationBar: true,
             disableBackButtonOverride: false,
           },
-          
-          
+
+
         });
       }, [navigation]);
     */
-    
+
       React.useEffect(() => {
 
-        //current_user.update(user.name,user._id,user.e_mail,user.auth_token,user.displayName);        
-        g_contacts[0].DisplayName=current_user.name;
-        g_contacts[0].PhoneNumber=current_user.number;
+        //current_user.update(user.name,user._id,user.e_mail,user.auth_token,user.displayName);
         setFilteredDataSource(g_contacts);
-        
+
       },[]);
-      
-    
+
+
 
 
     // store item.phoneNumber in some variable
@@ -951,7 +986,7 @@ const App: () => Node = ({navigation}) => {
       }
     };
 
-    
+
       class Item extends React.PureComponent {
 
         render()
@@ -974,9 +1009,9 @@ const App: () => Node = ({navigation}) => {
         }
       }
 
-      
+
      const renderItem = ({ item }) => {
-       
+
 
         return (
           <Item
@@ -988,7 +1023,7 @@ const App: () => Node = ({navigation}) => {
         );
     };
 
-    
+
 
     const _onPress = (item)=>{
       ToastAndroid.showWithGravityAndOffset(
@@ -1008,7 +1043,7 @@ const App: () => Node = ({navigation}) => {
             <FlatList
               bounces={true}
               data={filteredDataSource}
-              renderItem={({item}) => 
+              renderItem={({item}) =>
                 <Item
                   key={item.index}
                   item={item}
@@ -1032,10 +1067,10 @@ const App: () => Node = ({navigation}) => {
                     lightTheme
                     onCancel={()=>{setVisible(false)}}
                     showCancel={true}
-                  /> : null  
+                  /> : null
               }
               style={{width: Dimensions.get("window").width,
-              height: Dimensions.get("window").height-120 }}
+              height: Dimensions.get("window").height/1.1, flex:0 }}
               refreshControl={
                 <RefreshControl refreshing={false}/>
               }
@@ -1053,13 +1088,82 @@ const App: () => Node = ({navigation}) => {
 
 
       );
-    
+
 
   }
 
 
+
+
+
  function HomeDrawer({navigation}) {
-   
+  const { input } = React.useContext(AuthContext);
+  const { view } = React.useContext(AuthContext);
+  const { signOut } = React.useContext(AuthContext);
+
+
+    const DrawerContent = (props) =>(
+      <DrawerContentScrollView {...props}>
+        <View style={styles.drawerContent}>
+          <RNP.Drawer.Section style={styles.drawerSection}>
+            <View style={styles.userInfoSection}>
+                <Avatar.Icon
+                  icon="account-outline"
+                  size={100}
+                  style={{backgroundColor:'#214463',alignSelf:'center'}}
+                />
+                <Title style={styles.title}>{current_user.name}</Title>
+                <Caption style={styles.caption}>{current_user.number}</Caption>
+            </View>
+          </RNP.Drawer.Section>
+          <Divider />
+          <RNP.Drawer.Section style={styles.drawerSection}>
+            <RNP.Drawer.Item
+              icon="account-outline"
+              label="My Posts"
+              onPress={() => {
+                setSelectedUser(current_user.number)
+                view()
+              }}
+            />
+            <RNP.Drawer.Item
+              icon="bookmark-outline"
+              label="Bookmarks"
+              onPress={() => {alert('Bookmark added')}}
+            />
+            <Divider />
+            <RNP.Drawer.Item
+              icon="tune"
+              label="Settings"
+              onPress={() => {alert('Settings pressed')}}
+            />
+          </RNP.Drawer.Section>
+          <ElementsDivider width={1} color='#6a6e6c' />
+          <RNP.Drawer.Section style={styles.drawerSection}>
+          <RNP.Drawer.Item
+              icon="logout"
+              label="Feedback"
+              onPress={() => {
+
+              }}
+            />
+          <RNP.Drawer.Item
+              icon="logout"
+              label="Sign-Out"
+              onPress={async () => {
+                setConfirm(null);
+                await cache.clearAll();
+                signOut()
+              }}
+            />
+          </RNP.Drawer.Section>
+        </View>
+      </DrawerContentScrollView>
+    );
+
+
+
+
     return(
 
       <Drawer.Navigator screenOptions = {{
@@ -1072,8 +1176,9 @@ const App: () => Node = ({navigation}) => {
         },
         headerShown: true,
         header: (props) => <HeaderBar title='Home' isBack={false} isSearch={true}  isDrawer={true} {...props} />
-
-      }}>
+        }}
+        drawerContent={(props) => <DrawerContent {...props}/>}
+      >
         <Drawer.Screen name="Users" component={ContactsScreen} />
         <Drawer.Screen name="Feed" component={HomeScreen} />
       </Drawer.Navigator>
@@ -1117,21 +1222,36 @@ const App: () => Node = ({navigation}) => {
               style={styles.fab_post}
               small
               icon="keyboard-backspace"
-              onPress={() => {back()
-                setPosts([])}
-              }
+              onPress={() => {
+                setPosts([]);
+                back()
+              }}
             />
         ),
-        title: posts[0].Author,  
       });
     }, [navigation]);
 
     useEffect(() => {
+
+      if(posts.length === 0) {
+        back();
+        ToastAndroid.showWithGravityAndOffset(
+          "Selected User has not created any posts.",
+          ToastAndroid.LONG,
+          ToastAndroid.BOTTOM,
+          25,
+          50
+        );
+      }
+
       const backHandler = BackHandler.addEventListener(
         "hardwareBackPress",
-        back
+        () => {
+          setPosts([]);
+          back()
+        }
       );
-  
+
       return () => backHandler.remove();
     }, []);
 
@@ -1139,43 +1259,44 @@ const App: () => Node = ({navigation}) => {
       const Page = ({item}) => {
           return(
             //Allow local file access with allowFileAccess prop (use local file uri to render post html)
-            <WebView
-              originWhitelist={['*']}
-              source={{html: item.Post}}
-              containerStyle={{width:Dimensions.get('window').width,
-                      height: Dimensions.get('window').height,
-                    flex: 1, }}
-            />
-            
+            <Provider>
+              <WebView
+                originWhitelist={['*']}
+                source={{html: item.Post}}
+                containerStyle={{width:Dimensions.get('window').width,
+                        height: Dimensions.get('window').height/1.5,
+                      flex: 1, }}
+              />
+              <Appbar style={styles.bottom}>
+                <FAB
+                  style={styles.fab_delete}
+                  small
+                  icon="delete"
+                  label="Delete this Post"
+                  onPress={() => {deletePost(item._id,item.CreatedOn,item.Author);}}
+                />
+              </Appbar>
+            </Provider>
+
           );
         };
 
 
 
         return(
+          <>
             <View style={styles.swipe_container}>
               <SwiperFlatList
                 pagingEnabled
-                showPagination
                 index={posts.length-1}
-                showPagination
                 style={styles.wrapper}
                 data={posts}
                 renderItem={Page}
               />
-              <Appbar style={styles.bottom}>
-                <Appbar.Action
-                  icon="archive"
-                  onPress={() => console.log('Pressed archive')}
-                />
-                <Appbar.Action icon="mail" onPress={() => console.log('Pressed mail')} />
-                <Appbar.Action icon="label" onPress={() => console.log('Pressed label')} />
-                <Appbar.Action
-                  icon="delete"
-                  onPress={() => console.log('Pressed delete')}
-                />
-              </Appbar>
+
             </View>
+          </>
+
         );
   }
 
@@ -1187,16 +1308,15 @@ const App: () => Node = ({navigation}) => {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const {OTP} = React.useContext(AuthContext);
+    const image = { uri: "http://api.dwall.xyz/v1/app/random-image" };
 
 
     return (
-      <KeyboardAwareScrollView 
-          style={{flex:1}}>
-          <View style={styles.container_signUp}>
-            <Image
-              style={styles.logo}
-              source={require('./assets/Virtual-Notice-Board-logos.jpeg')}
-                />
+      <KeyboardAwareScrollView
+          style={{flex:1, height: Dimensions.get('window').height}}>
+         <View style={styles.container_signUp}>
+        <ImageBackground source={image} resizeMode="cover" style={styles.image}>
+
             <RNP.TextInput
               keyboardType='numeric'
               mode='outlined'
@@ -1208,11 +1328,11 @@ const App: () => Node = ({navigation}) => {
               onChangeText={(text) => setNumber( text ) }
               value={number}
               />
-            
+
             <RNP.Button
                 mode='contained'
                 style={styles.button}
-                
+                compact
                 onPress={() =>
                           {
                             current_user.update(name,"+91"+number,email);
@@ -1222,28 +1342,48 @@ const App: () => Node = ({navigation}) => {
                 disabled={false} >
               GET OTP
             </RNP.Button>
-            
+
+
+        </ImageBackground>
         </View>
-        </KeyboardAwareScrollView>
+      </KeyboardAwareScrollView>
     );
   }
 
   const HeaderBar = ({navigation, isBack, isSearch, isDrawer, title}) => {
         const {back} = React.useContext(AuthContext);
         return(
-          
+
           <Appbar.Header style={{backgroundColor:"#214463", alignItems:'center'}}>
             {isDrawer? <Appbar.Action icon="account-details" onPress={() => navigation.toggleDrawer()}  /> : null}
             {isBack? <Appbar.BackAction onPress={back} /> : null}
             <Appbar.Content title={title} style={{alignContent: 'center'}}/>
             {isSearch?<Appbar.Action icon="magnify" onPress={() => setVisible(!visible)} /> : null}
           </Appbar.Header>
-         
-          );                    
+
+          );
   }
 
+  const HeaderMenuBar = ({navigation, isBack, isSearch, isDrawer, title}) => {
+    const {back} = React.useContext(AuthContext);
+    const [menuOn, setMenuOn] = React.useState(false);
 
- 
+    const openMenu = () => setMenuOn(true);
+
+    const closeMenu = () => setMenuOn(false);
+    return(
+      <Appbar.Header style={{backgroundColor:"#214463", alignItems:'center'}}>
+        {isDrawer? <Appbar.Action icon="account-details" onPress={() => navigation.toggleDrawer()}  /> : null}
+        {isBack? <Appbar.BackAction onPress={back} /> : null}
+        <Appbar.Content title={title} style={{alignContent: 'center'}}/>
+      </Appbar.Header>
+
+
+      );
+}
+
+
+
 
 
 
@@ -1337,17 +1477,17 @@ const App: () => Node = ({navigation}) => {
       // Fetch the token from storage then navigate to our appropriate place
       const bootstrapAsync = async () => {
         let userToken=null;
-        
+
         try {
           // Restore token stored in `SecureStore` or any other encrypted storage
           //userToken = await confirm.confirm(code);
-          
+
           const luser = await cache.get("SignedIn_User");
           const lJsonUser = JSON.parse(luser);
           console.log("Calling from bootstrapasync:\nluser :-   " + luser+"\nlJsonUser:-   "+lJsonUser);
           userToken = lJsonUser.auth_token;
           current_user.update(lJsonUser.name,lJsonUser._id,lJsonUser.e_mail,lJsonUser.auth_token,lJsonUser.displayName);
-          
+
           //g_contacts[0].DisplayName=current_user.name;
           //g_contacts[0].PhoneNumber=current_user.number;
         } catch (e) {
@@ -1356,17 +1496,17 @@ const App: () => Node = ({navigation}) => {
           //console.log("No user exists in cache.");
           userToken = null;
         }
-        
+
         // After restoring token, we may need to validate it in production apps
 
         // This will switch to the App screen or Auth screen and this loading
         // screen will be unmounted and thrown away.
         dispatch({ type: 'RESTORE_TOKEN', token: userToken });
       };
-      
+
       GetContacts();
       bootstrapAsync();
-      
+
       //setTimeout(()=>{Alert.alert('I am appearing...', 'After 10 seconds!');},10000);
       //getPost("+919000945575");
     }, []
@@ -1502,6 +1642,7 @@ const App: () => Node = ({navigation}) => {
 
   if(state.isView){
     return(
+      <Provider>
       <AuthContext.Provider value={authContext}>
       <NavigationContainer>
         <Stack.Navigator>
@@ -1514,13 +1655,17 @@ const App: () => Node = ({navigation}) => {
               headerTitleAlign: 'center',
               headerStyle: {
                 backgroundColor: '#214463',
-              }
+              },
+              header: (props) => <HeaderMenuBar title='PostScreen' isBack={true} isSearch={false} isDrawer={false} {...props} />
+
               }
             }
           />
         </Stack.Navigator>
       </NavigationContainer>
     </AuthContext.Provider>
+    </Provider>
+
     );
   }
 
@@ -1549,7 +1694,7 @@ const App: () => Node = ({navigation}) => {
                   headerShown: false,
                   header: (props) => <HeaderBar title='Home' isBack={false} isSearch={true} {...props} />
                 }}
-                  
+
               />
               )
               :
@@ -1584,29 +1729,42 @@ const styles = StyleSheet.create({
 
     marginTop: 0,
     padding: 20,
-    
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
+    alignContent: 'center',
   },
   container:{
     marginTop: 0,
     padding: 5,
-    
-
+  },
+  image: {
+    alignContent: 'center',
+    height: Dimensions.get('window').height/1.1,
   },
   new_user_container:{
     marginTop: 0,
     padding: 5,
     justifyContent: 'space-around',
-
   },
   swipe_container: {
-    flex: 0,
+    flex: 1,
     backgroundColor: 'white'
+  },
+  drawerSection: {
+    marginTop: 15,
   },
   title: {
     fontSize: 32,
+    marginTop: '15%',
     fontWeight: 'bold',
+    alignSelf: 'center',
+  },
+  caption: {
+    fontSize: 14,
+    lineHeight: 14,
+    marginTop: '5%',
+    alignSelf: 'center',
   },
   wrapper: {
     flex: 0,
@@ -1615,14 +1773,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   bottom: {
-    position: 'relative',
+    flex: 2,
+    flexDirection: 'row',
+    position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: 50,
-    backgroundColor: '#84dbfa',
+
+    backgroundColor: '#214463',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    justifyContent: 'center',
+
   },
   tinyLogo: {
     width: 100,
@@ -1661,12 +1822,13 @@ const styles = StyleSheet.create({
     maxWidth: Dimensions.get('window').width-30,
   },
   input: {
-    marginTop: 40,
+    marginTop: '60%',
     paddingHorizontal: 24,
     fontSize: 20,
     height: 70,
     borderRadius: 20,
     width: Dimensions.get('window').width,
+    alignSelf: 'center',
   },
   new_input: {
     position: 'relative',
@@ -1682,10 +1844,11 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: 15,
-    marginLeft: Dimensions.get('window').width/50,
+    marginLeft: Dimensions.get('window').width/3,
     marginRight: Dimensions.get('window').width/20,
     fontSize: 24,
-    
+    width: Dimensions.get('window').width/3,
+
     alignItems: 'center',
     backgroundColor: '#214463',
   },
@@ -1693,7 +1856,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginTop: Dimensions.get('window').height/1.85,
     marginLeft: Dimensions.get('window').width/1.4,
-    
+
     flexDirection: 'row',
     fontSize: 24,
     alignContent: 'center',
@@ -1704,10 +1867,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     color: '#000000',
     marginRight: Dimensions.get('window').width/2,
-    fontSize: 24,   
+    fontSize: 24,
     alignSelf: 'flex-start',
     flexDirection: 'column-reverse',
-    
+
   },
   resend_button:{
     fontSize: 24,
@@ -1717,7 +1880,7 @@ const styles = StyleSheet.create({
     marginLeft: Dimensions.get('window').width/1.7,
   },
   logo: {
-    marginLeft: Dimensions.get('window').width/40,
+    marginLeft: Dimensions.get('window').width/10,
     marginBottom: 20,
     marginTop:5,
     width: 300,
@@ -1739,6 +1902,16 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: '#214463',
+  },
+
+  fab_delete: {
+    position: 'relative',
+    margin: 16,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'powderblue',
+    flexDirection: 'row-reverse',
+    alignSelf: 'center',
   },
 
   fab_post: {
@@ -1776,8 +1949,27 @@ const styles = StyleSheet.create({
 export default App;
 
 
-/*<Button title="Sign-IN" disabled={true} onPress={signIn} />
-options={{
+/*
+
+
+  <RNP.TextInput
+        mode='outlined'
+        keyboardType='numeric'
+        value={code}
+        maxLength={6}
+        onChangeText={setCode}
+        style={{
+          marginBottom:5,
+          marginTop:Dimensions.get('window').height/4,
+          width:Dimensions.get('window').width/1.5,
+          left: Dimensions.get('window').width/6,
+        }}
+        placeholder="Enter OTP"
+        outlineColor='white'
+        activeOutlinedColor='white'
+        />
+  <Button title="Sign-IN" disabled={true} onPress={signIn} />
+    options={{
                   title: 'My home',
                   headerStyle: {
                     backgroundColor: '#FFF',
@@ -1790,7 +1982,18 @@ options={{
                   }
                 }
 
-                            {isSearch?<Appbar.Action icon="magnify" onPress={() => {}} /> : null}
+    {isSearch?<Appbar.Action icon="magnify" onPress={() => {}} /> : null}
+    <Appbar.Action icon="delete-empty" onPress={() => console.log('Pressed archive')}/>
+    <Appbar.Action icon="delete-forever" onPress={() => console.log('Pressed delete')} />
+    <Menu
+                  visible={menuOn}
+                  onDismiss={closeMenu}
+                  anchor={<Appbar.Action icon="dots-vertical" onPress={openMenu} />}>
+                  <Menu.Item onPress={() => {console.log("Delete this post.");}} title="Delete" />
+                  <Menu.Item onPress={() => {}} title="Item 2" />
+                  <Divider />
+                  <Menu.Item onPress={() => {}} title="Item 3" />
+        </Menu>
 
 
 
