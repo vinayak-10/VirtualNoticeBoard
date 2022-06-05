@@ -188,7 +188,7 @@ const App: () => Node = ({navigation}) => {
   //const [cid, setCid] = useState(null);
   //const [nom, setNom] = useState('');
   const [user, setUser] = useState({});
-  const [post, setPost] = useState(null);
+  //const [post, setPost] = useState(null);
   //const [usr, setUsr] = useState();
 
 
@@ -242,6 +242,7 @@ const App: () => Node = ({navigation}) => {
                 },
               body: JSON.stringify({
               Author: num,
+              ReportType: "Detailed",
 
               })
           });
@@ -250,7 +251,7 @@ const App: () => Node = ({navigation}) => {
           let jsonResponse = await response.json();
           //let obj = {};
           if(jsonResponse.Response === 200) {
-              console.log("Calling from getUser:\n" + JSON.stringify(jsonResponse.profile));
+              console.log("Calling from getUser:\n" + JSON.stringify(jsonResponse.profile[0]));
               /*
               for (const [key, value] of Object.entries(jsonResponse.profile)){
                   console.log("Key: "+key+ " Value: "+value);
@@ -258,7 +259,10 @@ const App: () => Node = ({navigation}) => {
               }
               console.log(JSON.stringify(obj));
               */
-              await cache.set("SignedIn_User",JSON.stringify(jsonResponse.profile));
+
+              //Set current_user here .
+              await cache.set("SignedIn_User",JSON.stringify(jsonResponse.profile[0]));
+              current_user.update(jsonResponse.profile[0].name,jsonResponse.profile[0].Author,jsonResponse.profile[0].e_mail,jsonResponse.profile[0].auth_token,'');
               //setUser(jsonResponse.profile);
               //console.log("Calling from getUser on user:\n" + JSON.stringify(user));
               //dispatch({ type: 'SIGN_IN', token: current_user.token });
@@ -275,6 +279,58 @@ const App: () => Node = ({navigation}) => {
       resolve(false);
     }
   });
+
+
+
+  const getAllUsers = (num_array) => new Promise(async resolve => {
+    //Need to get all users to display contacts.
+
+    try{
+      console.log("Fetching profile");
+       const response = await fetch(URL_PROFILE+'get',{
+            method: 'POST',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json'
+              },
+            body: JSON.stringify({
+            Authors: num_array,
+            ReportType: "Summary",
+
+            })
+        });
+        console.log("Waiting for fetch profile response");
+
+        let jsonResponse = await response.json();
+        let obj = {};
+        let objArray = [];
+        if(jsonResponse.Response === 200) {
+            console.log("Calling from getAllUser jsonResponse.profile:\n" + JSON.stringify(jsonResponse.profile));
+            
+            for (var element in jsonResponse.profile){
+                objArray.push(jsonResponse.profile[element]);
+            }
+            console.log("objArray from GetAllUsers: \n" + JSON.stringify(objArray));
+            
+            //await cache.set("SignedIn_User",JSON.stringify(jsonResponse.profile));
+            //setUser(jsonResponse.profile);
+            //console.log("Calling from getUser on user:\n" + JSON.stringify(user));
+            //dispatch({ type: 'SIGN_IN', token: current_user.token });
+            resolve(objArray);
+          }
+          else{
+            //console.log("User Not Found Will Collect Profile.");
+            //dispatch({ type: 'SIGN_UP', token: current_user.token });
+            resolve(null);
+          }
+
+    }catch(err){
+    console.log(err);
+    resolve(false);
+    }
+  });
+
+
 
 
   function getPost(num){
@@ -313,6 +369,8 @@ const App: () => Node = ({navigation}) => {
 
               setPosts(resp_arr);
               resp_arr = [];
+              setTimeout(() => {}, 20000);
+             
             }
             else{
               console.log("User has no posts available or the user is not registered.");
@@ -323,6 +381,8 @@ const App: () => Node = ({navigation}) => {
               console.log(err);
           });
   }
+
+
 
   function deletePost(postId,createdOn,author){
     fetch(URL_POST+'delete',{
@@ -363,39 +423,10 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-  const getPostNext = async (num,lastDate) => {
-
-       fetch(URL_POST+'get',{
-          method: 'POST',
-          headers: {
-              Accept: 'application/json',
-              'Content-Type': 'application/json'
-            },
-          body: JSON.stringify({
-              Author: num,
-              CreatedOn: lastDate,
-              Direction: "next",
-          })
-      })
-          .then((response) => response.json())
-          .then((jsonResponse) => {
-            console.log(jsonResponse);
-            setPost(jsonResponse);})
-          .catch((err) => {
-              console.log(err);
-          });
-  };
+  
 
 
-  function LoadPost() {
-    getPost("+919000945575");
-    setPosts([ html+post.Post, ...posts ]);
-  }
-
-  function LoadNewPost() {
-    getPost("+919000945575");
-    setPosts([ html+post.Post, ...posts ]);
-  }
+  
 
 
 
@@ -498,15 +529,7 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-  function GetPost({navigation}) {
-    //Link with Swiper FlatList to display created posts.
-    return(
-      <View style={styles.container}>
-      <RNP.Button mode='text' compact onPress={() => {getPost('+919000945575', "2022-05-23T20:11:14.696Z");}}>Get Post</RNP.Button>
-      </View>
-    );
-
-  }
+  
 
 
   const GetContacts = async () => {
@@ -527,26 +550,73 @@ const App: () => Node = ({navigation}) => {
             // work with contacts
             //console.log("Printing cs: \n" + cs);
             let contactsObj = [];
-            let name_array = [];
+            let num_array = [];
             cs.forEach((contact, i) => {
                 let contactObj = {};
-                contactObj.DisplayName = contact.givenName + ' ' + contact.familyName;
-                name_array.push(contactObj.DisplayName);
+                contactObj.name = contact.givenName + ' ' + contact.familyName;
+                
                 contactObj.index = i+1;
                 contact.phoneNumbers.forEach((num, i) => {
                       //console.log(number.number);
-                      contactObj.PhoneNumber = num.number;
+                      contactObj.Author = num.number;
                   });        // end foreach
+                contactObj.postCount = 0;
+                contactObj.lastUpdated = '';  
               contactsObj.push(contactObj);
+              num_array.push(contactObj.Author);
             }); // end foreach
 
-            name_array.sort();
-            let key = "DisplayName";
+            let response = await getAllUsers(num_array);
+
+
+            //filter registered contacts.
+            
+            if(response !== null) {
+              // prepare responseArray from response
+              let responseArray =  [];
+
+              response.forEach(element => {
+                responseArray.push(element.Author);
+              });
+
+
+              // for each element in contactsObj; check if number is present in response
+              // if Yes, Ignore it ( don't append )
+
+              var filtered = contactsObj.filter( (value) => {
+                return !responseArray.includes(value.Author);
+                });
+
+                let key = "name";
+                filtered.sort(function(a,b){
+                  var x = a[key]; var y = b[key];
+                  return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+                });
+
+               setGcontacts(response.concat(filtered)); 
+            } 
+            else {
+
+              let key = "name";
+              contactsObj.sort(function(a,b){
+                var x = a[key]; var y = b[key];
+                return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+                });
+
+                setGcontacts(contactsObj);
+            }
+
+
+            // for each element in contactsObj; check if number is present in response
+            // if Yes, Ignore it ( don't append )
+
+            /*
+            let key = "name";
             contactsObj.sort(function(a,b){
               var x = a[key]; var y = b[key];
               return ((x < y) ? -1 : ((x > y) ? 1 : 0));
             });
-            setGcontacts(contactsObj);//Set first element to be the use in g_contacts array.
+            setGcontacts(contactsObj);*/
             //console.log("Everything run successfully in GetContacts: \n" + JSON.stringify(g_contacts) + "\n"+ JSON.stringify(contactsObj));
 
 
@@ -579,7 +649,7 @@ const App: () => Node = ({navigation}) => {
     return (
       <View style={{justifyContent:'space-evenly', alignItems:'center',flex: 1}}>
         <Image
-          source={require('./assets/Virtual-Notice-Board-logos.jpeg')}
+          source={require('./assets/Virtual-Notice-Board-logos.png')}
           style={styles.logo} />
         <RNP.ActivityIndicator animating={true} color={RNP.Colors.red800} size='large' />
         <Text>Loading...</Text>
@@ -649,32 +719,32 @@ const App: () => Node = ({navigation}) => {
       {
         id: "bd7acbea-c1b1-46c2-aed5-3ad53abb28ba",
         title: "First Item",
-        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.png'),
       },
       {
         id: "3ac68afc-c605-48d3-a4f8-fbd91aa97f63",
         title: "Second Item",
-        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.png'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-145571e29d72",
         title: "Third Item",
-        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.png'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-fbd91aa97f63",
         title: "Fourth Item",
-        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.png'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-3ad53abb28ba",
         title: "Fifth Item",
-        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.png'),
       },
       {
         id: "58694a0f-3da1-471f-bd96-bd7acbea",
         title: "Sixth Item",
-        img: require('./assets/Virtual-Notice-Board-logos.jpeg'),
+        img: require('./assets/Virtual-Notice-Board-logos.png'),
       },
     ];
 
@@ -933,7 +1003,8 @@ const App: () => Node = ({navigation}) => {
     const { view } = React.useContext(AuthContext);
     const { signOut } = React.useContext(AuthContext);
     const [search, setSearch] = useState('');
-    const [filteredDataSource, setFilteredDataSource] = useState([]);
+    const [filteredDataSource, setFilteredDataSource] = useState(g_contacts);
+    
 
 
     /*
@@ -954,8 +1025,10 @@ const App: () => Node = ({navigation}) => {
       React.useEffect(() => {
 
         //current_user.update(user.name,user._id,user.e_mail,user.auth_token,user.displayName);
-        setFilteredDataSource(g_contacts);
-
+        //console.log(g_contacts);
+        if(filteredDataSource.length === 0){
+            setFilteredDataSource(g_contacts);
+          }
       },[]);
 
 
@@ -970,8 +1043,8 @@ const App: () => Node = ({navigation}) => {
         // Filter the masterDataSource
         // Update FilteredDataSource
         const newData = g_contacts.filter(function (item) {
-          const itemData = item.DisplayName
-            ? item.DisplayName.toUpperCase()
+          const itemData = item.name
+            ? item.name.toUpperCase()
             : ''.toUpperCase();
           const textData = text.toUpperCase();
           return itemData.indexOf(textData) > -1;
@@ -995,11 +1068,15 @@ const App: () => Node = ({navigation}) => {
             <Provider>
             <TouchableOpacity
                 onPress={() => {
-                    setSelectedUser(this.props.item.PhoneNumber);
+                    setSelectedUser(this.props.item.Author);
+                    getPost(this.props.item.Author);
                     view()}}
                 style={[styles.contact_item]}>
               <Card style={[styles.contact_card]} mode='outlined'>
-                <Card.Title title={this.props.item.DisplayName} subtitle={this.props.item.PhoneNumber} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" backgroundColor="#214463" />} />
+                <Card.Title title={this.props.item.name} subtitle={this.props.item.Author} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" backgroundColor="#214463" />} />
+                <Card.Content>
+                    <Paragraph>Post(s): {this.props.item.postCount}</Paragraph>
+                </Card.Content>
               </Card>
 
             </TouchableOpacity>
@@ -1093,14 +1170,55 @@ const App: () => Node = ({navigation}) => {
   }
 
 
+  function FeedbackScreen({navigation}) {
 
+    const { back } = React.useContext(AuthContext);
+    const URLName = encodeURIComponent(current_user.number);  //current_user.number
+    const URL = "http://api.dwall.xyz/app/feedback.html?Author="+ URLName;
+
+    React.useLayoutEffect(() => {
+      navigation.setOptions({
+        
+        headerLeft: () => (
+          <FAB
+              style={styles.fab_post}
+              small
+              icon="keyboard-backspace"
+              onPress={back}
+            />
+        ),
+
+      }
+      );
+    }, [navigation]);
+
+    useEffect(() => {
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        back
+      );
+
+      return () => backHandler.remove();
+    }, []);
+
+    return(
+      <WebView
+          originWhitelist={['*']}
+          source={{uri:URL }}
+          style={{backgroundColor: 'white', position: 'relative' }}
+          containerStyle={{width:Dimensions.get('window').width,
+                  height: Dimensions.get('window').height/1.1,
+                  flex: 0, alignSelf:'center'}}
+        />
+    )
+  }
 
 
  function HomeDrawer({navigation}) {
   const { input } = React.useContext(AuthContext);
   const { view } = React.useContext(AuthContext);
   const { signOut } = React.useContext(AuthContext);
-
+  const { feedback } = React.useContext(AuthContext);
 
     const DrawerContent = (props) =>(
       <DrawerContentScrollView {...props}>
@@ -1116,35 +1234,35 @@ const App: () => Node = ({navigation}) => {
                 <Caption style={styles.caption}>{current_user.number}</Caption>
             </View>
           </RNP.Drawer.Section>
-          <Divider />
+          
           <RNP.Drawer.Section style={styles.drawerSection}>
             <RNP.Drawer.Item
               icon="account-outline"
               label="My Posts"
               onPress={() => {
-                setSelectedUser(current_user.number)
+                setSelectedUser(current_user.number);
+                getPost(current_user.number);
                 view()
               }}
             />
             <RNP.Drawer.Item
               icon="bookmark-outline"
               label="Bookmarks"
-              onPress={() => {alert('Bookmark added')}}
+              onPress={() => {alert('New Functionality Coming Soon......')}}
             />
-            <Divider />
+            
             <RNP.Drawer.Item
               icon="tune"
               label="Settings"
-              onPress={() => {alert('Settings pressed')}}
+              onPress={() => {alert('Settings Coming Soon.....')}}
             />
           </RNP.Drawer.Section>
-          <ElementsDivider width={1} color='#6a6e6c' />
           <RNP.Drawer.Section style={styles.drawerSection}>
           <RNP.Drawer.Item
-              icon="logout"
+              icon="message-star-outline"
               label="Feedback"
               onPress={() => {
-
+                  feedback()
               }}
             />
           <RNP.Drawer.Item
@@ -1193,13 +1311,9 @@ const App: () => Node = ({navigation}) => {
 
 
     const { back } = React.useContext(AuthContext);
+    //const [post,setPost] = useState(getPost(selectedUser));
 
-    if(selectedUser != '') {
-      getPost(selectedUser);
-      console.log("Got posts for :" + selectedUser);
-      setSelectedUser('');
-    }
-    console.log(posts.length);
+    
 
     const theme = {
       ...DefaultTheme,
@@ -1233,8 +1347,19 @@ const App: () => Node = ({navigation}) => {
 
     useEffect(() => {
 
+      setTimeout(() => {}, 10000);
+      
+      if(selectedUser !== '') {
+        console.log("Got posts for :" + selectedUser);
+        //let userForPost = selectedUser;
+        setSelectedUser('');
+        //setPost(getPost(userForPost));
+      }
+
+      console.log(posts.length);
+      
       if(posts.length === 0) {
-        back();
+        
         ToastAndroid.showWithGravityAndOffset(
           "Selected User has not created any posts.",
           ToastAndroid.LONG,
@@ -1267,7 +1392,8 @@ const App: () => Node = ({navigation}) => {
                         height: Dimensions.get('window').height/1.5,
                       flex: 1, }}
               />
-              <Appbar style={styles.bottom}>
+              {current_user.number===item.Author?
+                (<Appbar style={styles.bottom}>
                 <FAB
                   style={styles.fab_delete}
                   small
@@ -1275,7 +1401,8 @@ const App: () => Node = ({navigation}) => {
                   label="Delete this Post"
                   onPress={() => {deletePost(item._id,item.CreatedOn,item.Author);}}
                 />
-              </Appbar>
+              </Appbar>) : null
+              }
             </Provider>
 
           );
@@ -1324,11 +1451,11 @@ const App: () => Node = ({navigation}) => {
               outlineColor='white'
               activeOutlinedColor='#214463'
               placeholder="Enter Phone Number"
+              label="Phone Number"
               maxLength={10}
               onChangeText={(text) => setNumber( text ) }
               value={number}
               />
-
             <RNP.Button
                 mode='contained'
                 style={styles.button}
@@ -1342,18 +1469,17 @@ const App: () => Node = ({navigation}) => {
                 disabled={false} >
               GET OTP
             </RNP.Button>
-
-
         </ImageBackground>
         </View>
       </KeyboardAwareScrollView>
     );
   }
 
+
+
   const HeaderBar = ({navigation, isBack, isSearch, isDrawer, title}) => {
         const {back} = React.useContext(AuthContext);
         return(
-
           <Appbar.Header style={{backgroundColor:"#214463", alignItems:'center'}}>
             {isDrawer? <Appbar.Action icon="account-details" onPress={() => navigation.toggleDrawer()}  /> : null}
             {isBack? <Appbar.BackAction onPress={back} /> : null}
@@ -1363,6 +1489,8 @@ const App: () => Node = ({navigation}) => {
 
           );
   }
+
+
 
   const HeaderMenuBar = ({navigation, isBack, isSearch, isDrawer, title}) => {
     const {back} = React.useContext(AuthContext);
@@ -1374,11 +1502,14 @@ const App: () => Node = ({navigation}) => {
     return(
       <Appbar.Header style={{backgroundColor:"#214463", alignItems:'center'}}>
         {isDrawer? <Appbar.Action icon="account-details" onPress={() => navigation.toggleDrawer()}  /> : null}
-        {isBack? <Appbar.BackAction onPress={back} /> : null}
+        {isBack? <Appbar.BackAction onPress={()=> {
+            back();
+            setPosts([]);
+            }} /> : 
+            null
+        }
         <Appbar.Content title={title} style={{alignContent: 'center'}}/>
       </Appbar.Header>
-
-
       );
 }
 
@@ -1401,6 +1532,7 @@ const App: () => Node = ({navigation}) => {
             isInput: false,
             isView: false,
             homeInitial: false,
+            isFeedback: false,
           };
         case 'SIGN_IN':
           return {
@@ -1411,6 +1543,7 @@ const App: () => Node = ({navigation}) => {
             isView: false,
             isNewUser: false,
             homeInitial: false,
+            isFeedback: false,
           };
         case 'SIGN_UP':
           return {
@@ -1419,6 +1552,7 @@ const App: () => Node = ({navigation}) => {
             isNewUser: true,
             userToken: action.token,
             homeInitial: false,
+            isFeedback: false,
           };
         case 'SIGN_OUT':
           return {
@@ -1429,6 +1563,7 @@ const App: () => Node = ({navigation}) => {
             isView: false,
             isNewUser: false,
             homeInitial: false,
+            isFeedback: false,
           };
         case 'INPUT':
           return{
@@ -1436,6 +1571,7 @@ const App: () => Node = ({navigation}) => {
             isSignout: false,
             isInput: true,
             isView: false,
+            isFeedback: false,
           };
         case 'BACK':
           return{
@@ -1443,6 +1579,7 @@ const App: () => Node = ({navigation}) => {
             isInput: false,
             isSignout: false,
             isView: false,
+            isFeedback: false,
           };
         case 'VIEW':
           return{
@@ -1452,11 +1589,18 @@ const App: () => Node = ({navigation}) => {
             isView: true,
             isNewUser: false,
             homeInitial: false,
+            isFeedback: false,
           };
         case 'OTP':
           return{
             ...prevState,
             homeInitial: true,
+            isFeedback: false,
+          }
+        case 'Feedback':
+          return{
+            ...prevState,
+            isFeedback:true,
           }
       }
     },
@@ -1468,6 +1612,7 @@ const App: () => Node = ({navigation}) => {
       isInput: false,
       isView: false,
       homeInitial: false,
+      isFeedback: false,
     }
   );
 
@@ -1486,9 +1631,9 @@ const App: () => Node = ({navigation}) => {
           const lJsonUser = JSON.parse(luser);
           console.log("Calling from bootstrapasync:\nluser :-   " + luser+"\nlJsonUser:-   "+lJsonUser);
           userToken = lJsonUser.auth_token;
-          current_user.update(lJsonUser.name,lJsonUser._id,lJsonUser.e_mail,lJsonUser.auth_token,lJsonUser.displayName);
+          current_user.update(lJsonUser.name,lJsonUser.Author,lJsonUser.e_mail,lJsonUser.auth_token,lJsonUser.displayName);
 
-          //g_contacts[0].DisplayName=current_user.name;
+          //g_contacts[0].name=current_user.name;
           //g_contacts[0].PhoneNumber=current_user.number;
         } catch (e) {
           // Restoring token failed
@@ -1511,6 +1656,8 @@ const App: () => Node = ({navigation}) => {
       //getPost("+919000945575");
     }, []
   );
+
+
 
   const authContext = React.useMemo(
       () => ({
@@ -1544,6 +1691,9 @@ const App: () => Node = ({navigation}) => {
         },
         OTP: async ()=>{
           dispatch({type:'OTP'});
+        },
+        feedback: async ()=>{
+          dispatch({type: 'Feedback'});
         },
       }),
       []
@@ -1674,7 +1824,7 @@ const App: () => Node = ({navigation}) => {
       <NavigationContainer>
         <Stack.Navigator headerBackVisible={true}>
           { !state.isInput ?
-
+              (!state.isFeedback ?
                 (
                 <Stack.Screen
                   name="Home"
@@ -1696,7 +1846,30 @@ const App: () => Node = ({navigation}) => {
                 }}
 
               />
-              )
+              ) 
+              : 
+              (
+                <Stack.Screen
+                  name="Feedback"
+                  component={FeedbackScreen}
+                  options={{
+                    title: 'Home',
+                  // When logging out, a pop animation feels intuitive
+                   animationTypeForReplace: state.isSignout ? 'pop' : 'push',
+                   headerTitleAlign: 'center',
+                   headerStyle: {
+                    backgroundColor: '#214463',
+                  },
+                  headerTintColor: '#fff',
+                  headerTitleStyle: {
+                    fontWeight: 'bold',
+                  },
+                  headerShown: true,
+                  header: (props) => <HeaderBar title='Feedback' isBack={true} isSearch={false} {...props} />
+                }}
+
+              />
+              ))
               :
               (
               <Stack.Screen
@@ -1717,8 +1890,6 @@ const App: () => Node = ({navigation}) => {
       </NavigationContainer>
     </AuthContext.Provider>
   );
-
-
 
 
 }

@@ -387,3 +387,49 @@ const styles = StyleSheet.create({
 });
 
 export default App;
+
+
+
+/*const getPostNext = async (num,lastDate) => {
+
+       fetch(URL_POST+'get',{
+          method: 'POST',
+          headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json'
+            },
+          body: JSON.stringify({
+              Author: num,
+              CreatedOn: lastDate,
+              Direction: "next",
+          })
+      })
+          .then((response) => response.json())
+          .then((jsonResponse) => {
+            console.log(jsonResponse);
+            setPost(jsonResponse);})
+          .catch((err) => {
+              console.log(err);
+          });
+  };
+
+  function LoadPost() {
+    getPost("+919000945575");
+    setPosts([ html+post.Post, ...posts ]);
+  }
+
+  function LoadNewPost() {
+    getPost("+919000945575");
+    setPosts([ html+post.Post, ...posts ]);
+  }
+
+  function GetPost({navigation}) {
+    //Link with Swiper FlatList to display created posts.
+    return(
+      <View style={styles.container}>
+      <RNP.Button mode='text' compact onPress={() => {getPost('+919000945575', "2022-05-23T20:11:14.696Z");}}>Get Post</RNP.Button>
+      </View>
+    );
+
+  }
+*/
