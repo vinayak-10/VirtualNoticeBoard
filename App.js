@@ -222,6 +222,8 @@ const App: () => Node = ({navigation}) => {
 
   const html = `<head><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>`;
 
+  const htmlCard = `<head><meta name="viewport" content="width=device-width, initial-scale=0.3"></head>`;
+
 
   const [posts, setPosts] = useState([]);
 
@@ -561,7 +563,7 @@ const App: () => Node = ({navigation}) => {
                       contactObj.Author = num.number;
                   });        // end foreach
                 contactObj.postCount = 0;
-                contactObj.lastUpdated = '';  
+                contactObj.recentPost = '';  
               contactsObj.push(contactObj);
               num_array.push(contactObj.Author);
             }); // end foreach
@@ -1072,11 +1074,29 @@ const App: () => Node = ({navigation}) => {
                     getPost(this.props.item.Author);
                     view()}}
                 style={[styles.contact_item]}>
-              <Card style={[styles.contact_card]} mode='outlined'>
-                <Card.Title title={this.props.item.name} subtitle={this.props.item.Author} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" backgroundColor="#214463" />} />
-                <Card.Content>
-                    <Paragraph>Post(s): {this.props.item.postCount}</Paragraph>
-                </Card.Content>
+              <Card style={[styles.contacts_card]} mode='outlined'>
+                <Card.Title title={this.props.item.name} titleStyle={{color:'#214463',fontSize:22}} subtitle={this.props.item.Author} subtitleStyle={{fontSize: 16}} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" backgroundColor="#214463" />} />
+                <Card.Content>                   
+                    {this.props.item.recentPost !== '' ?
+                      (
+                      <RNP.Surface style={styles.surface}>
+                      <WebView
+                            originWhitelist={['*']}
+                            source={{html: htmlCard+"<body>"+this.props.item.recentPost+"</body>"}}
+                            containerStyle={{width:'100%',
+                                    height: '100%',
+                                    flex: 0,position:'relative' }}
+                            style={{
+                              height: '100%',
+                              width: '100%',
+                            }}
+                            scalesPageToFit={true}
+                          /> 
+                    </RNP.Surface>
+                    ) : null
+                    }
+                    <Paragraph style={{color:'#b53d09',fontSize:16,fontStyle:'italic',alignSelf:'center'}}>Total Post(s): {this.props.item.postCount}</Paragraph>
+                  </Card.Content>
               </Card>
 
             </TouchableOpacity>
@@ -1208,7 +1228,7 @@ const App: () => Node = ({navigation}) => {
           style={{backgroundColor: 'white', position: 'relative' }}
           containerStyle={{width:Dimensions.get('window').width,
                   height: Dimensions.get('window').height/1.1,
-                  flex: 0, alignSelf:'center'}}
+                  flex: 1, alignSelf:'center'}}
         />
     )
   }
@@ -1937,6 +1957,16 @@ const styles = StyleSheet.create({
     marginTop: '5%',
     alignSelf: 'center',
   },
+  surface: {
+    padding: 0,
+    height: 130,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection:'row',
+    alignSelf:'stretch',
+    elevation: 4,
+  },
   wrapper: {
     flex: 0,
     height: Dimensions.get('window').height,
@@ -1989,8 +2019,8 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'scroll',
-    height: 90,
-    maxWidth: Dimensions.get('window').width-30,
+    height: 'auto',
+    maxWidth: Dimensions.get('window').width/1.03,
   },
   input: {
     marginTop: '60%',

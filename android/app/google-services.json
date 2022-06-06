@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "298484600497-vuvnog9egjb4dbqhji01g2kdlsk4q2qd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.virtualnoticeboard",
+            "certificate_hash": "0fbca0a400994420a13dba8db21dcdac92806712"
+          }
+        },
+        {
           "client_id": "298484600497-8no5d6q62rbk4s13t6s54kafir9p39js.apps.googleusercontent.com",
           "client_type": 3
         }
