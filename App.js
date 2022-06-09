@@ -52,7 +52,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator, DrawerItem, DrawerContentScrollView } from '@react-navigation/drawer';
 
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import Animated,{ Value } from 'react-native-reanimated';
+import Animated,{ Value, BounceIn, BounceOut, Layout } from 'react-native-reanimated';
 import 'react-native-gesture-handler';
 
 import Contacts from 'react-native-contacts';
@@ -66,6 +66,7 @@ import * as icon from 'react-native-vector-icons/FontAwesome';
 import { Cache } from "react-native-cache";
 import { SearchBar } from 'react-native-elements';
 import OTPInput from 'react-native-otp';
+import Swiper from "react-native-custom-swiper";
 
 
 
@@ -84,15 +85,13 @@ import auth from '@react-native-firebase/auth';
 
 import { Divider as ElementsDivider } from "react-native-elements";
 
+// Require `PhoneNumberFormat`.
+const PNF = require('google-libphonenumber').PhoneNumberFormat;
 
 
 
-
-
-
-
-
-
+// Get an instance of `PhoneNumberUtil`.
+const phoneUtil = require('google-libphonenumber').PhoneNumberUtil.getInstance();
 
 
  /*
@@ -145,14 +144,16 @@ class User{
       this.email = "";
       this.token = null;
       this.dspn = '';
+      this.Permissions = [];
     }
 
-    update(name='', number='', email='', token=null,dspn='') {
+    update(name='', number='', email='', token=null,permissions=[],dspn='') {
       if(name) this.name = name;
       if(number) this.number = number;
       if(email) this.email = email;
       if(token) this. token = token;
       if(dspn) this.dspn = dspn;
+      if(permissions) this.Permissions = permissions;
       //updateUser(this.number,this.name,this.dspn,this.email);
     }
 
@@ -161,7 +162,7 @@ class User{
 
 const App: () => Node = ({navigation}) => {
 
-  //Put declarations in a different file.
+  //Declarations.
 
   const AuthContext = React.createContext();
   const Stack = createNativeStackNavigator();
@@ -229,7 +230,66 @@ const App: () => Node = ({navigation}) => {
 
   const [g_contacts, setGcontacts] = useState([{}]);
 
+  const [postTitle, setTitle] = React.useReducer(
+    (prevState, action) => {
+      switch (action.type) {
+        case 'newTitle':
+          return{
+            title: action.payload,
+          };
+        case 'reset':
+          return{
+            title: '',
+          };
+      }
+    },
+    {
+      title: '',
+    }
+  );
 
+  const bootstrapAsync = async () => {
+    let userToken=null;
+
+    try {
+      // Restore token stored in `SecureStore` or any other encrypted storage
+      //userToken = await confirm.confirm(code);
+
+      const luser = await cache.get("SignedIn_User");
+      const lJsonUser = JSON.parse(luser);
+      console.log("Calling from bootstrapasync:\nluser :-   " + luser+"\nlJsonUser:-   "+lJsonUser);
+      userToken = lJsonUser.auth_token;
+      current_user.update(lJsonUser.name,lJsonUser.Author,lJsonUser.e_mail,lJsonUser.auth_token,lJsonUser.Permissions,lJsonUser.displayName);
+
+      //g_contacts[0].name=current_user.name;
+      //g_contacts[0].PhoneNumber=current_user.number;
+    } catch (e) {
+      // Restoring token failed
+      //console.log(e);
+      //console.log("No user exists in cache.");
+      userToken = null;
+    }
+    finally{
+      let response = await getAllUsers();
+      if(response !== null){
+        setGcontacts(response);
+      }
+      else{
+        console.log("Users not retrieved");
+      }
+      dispatch({ type: 'RESTORE_TOKEN', token: userToken });
+    }
+    // After restoring token, we may need to validate it in production apps
+
+    // This will switch to the App screen or Auth screen and this loading
+    // screen will be unmounted and thrown away.
+    
+    
+  };
+
+
+
+  //Functions dealing with server related data operations.
 
   const getUser = (num) => new Promise(async resolve => {
       //Need to get all users to display contacts.
@@ -245,6 +305,7 @@ const App: () => Node = ({navigation}) => {
               body: JSON.stringify({
               Author: num,
               ReportType: "Detailed",
+              Permissions: ["Add", "View"]
 
               })
           });
@@ -264,7 +325,7 @@ const App: () => Node = ({navigation}) => {
 
               //Set current_user here .
               await cache.set("SignedIn_User",JSON.stringify(jsonResponse.profile[0]));
-              current_user.update(jsonResponse.profile[0].name,jsonResponse.profile[0].Author,jsonResponse.profile[0].e_mail,jsonResponse.profile[0].auth_token,'');
+              current_user.update(jsonResponse.profile[0].name,jsonResponse.profile[0].Author,jsonResponse.profile[0].e_mail,jsonResponse.profile[0].auth_token,jsonResponse.profile[0].Permissions,'');
               //setUser(jsonResponse.profile);
               //console.log("Calling from getUser on user:\n" + JSON.stringify(user));
               //dispatch({ type: 'SIGN_IN', token: current_user.token });
@@ -284,7 +345,7 @@ const App: () => Node = ({navigation}) => {
 
 
 
-  const getAllUsers = (num_array) => new Promise(async resolve => {
+  const getAllUsers = () => new Promise(async resolve => {
     //Need to get all users to display contacts.
 
     try{
@@ -296,9 +357,9 @@ const App: () => Node = ({navigation}) => {
               'Content-Type': 'application/json'
               },
             body: JSON.stringify({
-            Authors: num_array,
+            Authors: [],
             ReportType: "Summary",
-
+            Permissions: ["Add"]
             })
         });
         console.log("Waiting for fetch profile response");
@@ -425,21 +486,443 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-  
+
+  const GetContacts = async () => {
 
 
-  
+      try{
+      const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
+                  {
+                    'title': 'Contacts',
+                    'message': 'This app would like to view your contacts.',
+                    'buttonPositive': 'Please accept bare mortal'
+                  }
+                );
+        if(permission === PermissionsAndroid.RESULTS.GRANTED)
+        {
+          let cs = await Contacts.getAllWithoutPhotos();
 
+            // work with contacts
+            //console.log("Printing cs: \n" + cs);
+            let contactsObj = [];
+            let num_array = [];
+            cs.forEach((contact, i) => {
+                let contactObj = {};
+                contactObj.name = contact.givenName + ' ' + contact.familyName;
+                
+                contactObj.index = i+1;
+                contact.phoneNumbers.forEach((num, i) => {
+                    try {
+                      console.log(contactObj.name);
+                      const nformat = phoneUtil.parseAndKeepRawInput(num.number, 'IN');
+                      console.log("Parsed number: " + nformat.getRawInput());
+                      let e164num = phoneUtil.format(nformat, PNF.E164);
+                      console.log("e164: " + e164num);
+                      contactObj.Author = e164num;
+                    } catch (err) {
+                      console.log("Invalid phone numner:" + num.number + " skipping...")
+                    }
+                  });        // end foreach
+                contactObj.postCount = 0;
+                contactObj.recentPost = '';  
+              contactsObj.push(contactObj);
+              num_array.push(contactObj.Author);
+            }); // end foreach
+
+            let response = await getAllUsers(num_array);
+
+
+            //filter registered contacts.
+            
+            if(response !== null) {
+              // prepare responseArray from response
+              let responseArray =  [];
+
+              response.forEach(element => {
+                responseArray.push(element.Author);
+              });
+
+
+              // for each element in contactsObj; check if number is present in response
+              // if Yes, Ignore it ( don't append )
+
+              var filtered = contactsObj.filter( (value) => {
+                return !responseArray.includes(value.Author);
+                });
+
+                let key = "name";
+                filtered.sort(function(a,b){
+                  var x = a[key]; var y = b[key];
+                  return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+                });
+
+              setGcontacts(response.concat(filtered)); 
+              
+            } 
+            else {
+
+              let key = "name";
+              contactsObj.sort(function(a,b){
+                var x = a[key]; var y = b[key];
+                return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+                });
+
+                setGcontacts(contactsObj);
+            }
+
+
+            // for each element in contactsObj; check if number is present in response
+            // if Yes, Ignore it ( don't append )
+
+            /*
+            let key = "name";
+            contactsObj.sort(function(a,b){
+              var x = a[key]; var y = b[key];
+              return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+            });
+            setGcontacts(contactsObj);*/
+            //console.log("Everything run successfully in GetContacts: \n" + JSON.stringify(g_contacts) + "\n"+ JSON.stringify(contactsObj));
+
+
+
+        } // end then
+        else{
+          console.log("Calling from GetContacts else \n" + "Permission not granted");
+        }
+      }
+      catch(err){
+        console.log("Calling from GetContacts last catch() \n"+err);
+      }
+
+  };
+
+
+
+  async function signInWithPhoneNumber(phoneNumber) {
+    console.log(phoneNumber);
+    const confirmation = await auth().signInWithPhoneNumber(phoneNumber,true);
+    console.log(confirmation.verificationId);
+
+    setConfirm(confirmation);
+  }
+
+  const confirmCode = (code) => new Promise(async resolve => {
+    console.log("Inside Confirm Code");
+    try {
+      if(await confirm.confirm(code)){
+
+        current_user.token = confirm.verificationId;
+        //setIsReady(true);
+        ToastAndroid.showWithGravityAndOffset(
+          "Code Confirmed",
+          ToastAndroid.LONG,
+          ToastAndroid.BOTTOM,
+          25,
+          50
+        );
+
+        //console.log("Code confirmed for user:" + number + " Name:" + name + " Display Name:" + displayName + " email:" + email );
+
+        //addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
+
+
+        resolve(true);
+
+
+      }
+    } catch (error) {
+        console.log(error);
+        ToastAndroid.showWithGravityAndOffset(
+          "Wrong Code Entered, Enter the correct code.",
+          ToastAndroid.LONG,
+          ToastAndroid.BOTTOM,
+          25,
+          50
+        );
+          resolve(false);
+      }
+  });
+
+
+
+  //Screen Functions defining defferent screens.
+  /*
+           <RNP.ActivityIndicator animating={true} color={RNP.Colors.red800} size='large' />
+
+  */
+
+  function ProfileScreen() {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Profile!</Text>
+      </View>
+    );
+  }
+
+
+  function SplashScreen() {
+    return (
+      
+      <View style={{justifyContent:'space-evenly', alignItems:'center',flex: 1}}>
+        <Image
+          source={require('./assets/Virtual-Notice-Board-logos.png')}
+          style={styles.logo} />
+        <RNP.ActivityIndicator animating={true} color={RNP.Colors.red800} size='large' />
+        <Text>Loading...</Text>
+      </View>
+      
+    );
+  }
+
+
+  function WelcomeScreen() {
+    return(
+      <RNP.TouchableRipple
+        onPress={() => {
+          bootstrapAsync();
+          //GetContacts();
+        }}
+        centered
+        rippleColor="rgba(0, 0, 0, .32)"
+        style={styles.container}
+      >
+      <Animated.View 
+        entering={BounceIn} 
+        style={styles.container}
+        layout={Layout.springify()}
+        exiting={BounceOut}
+        
+        >
+        <Image source={require('./assets/Virtual-Notice-Board-logos.png')} style={styles.welcome_logo} />
+        <Title style={styles.title}>A Notice Board that never lets you fall behind</Title>
+      </Animated.View>
+      </RNP.TouchableRipple>
+    );
+  }
+
+
+  function SignUpScreen() {
+    //Beautify text inputs.
+    //Give Country code functionality to user.
+    const [number, setNumber] = useState('');
+    const {OTP} = React.useContext(AuthContext);
+    const image = { uri: "http://api.dwall.xyz/v1/app/random-image" };
+
+
+    return (
+      <KeyboardAwareScrollView
+          style={{flex:1, height: Dimensions.get('window').height}}>
+         <View style={styles.container_signUp}>
+        <ImageBackground source={image} resizeMode="cover" style={styles.image}>
+
+            <RNP.TextInput
+              keyboardType='numeric'
+              mode='outlined'
+              style={styles.input}
+              outlineColor='white'
+              activeOutlinedColor='#214463'
+              placeholder="Enter Phone Number"
+              label="Phone Number"
+              maxLength={10}
+              onChangeText={(text) => setNumber( text ) }
+              value={number}
+              />
+            <RNP.Button
+                mode='contained'
+                style={styles.button}
+                compact
+                onPress={() =>
+                          {
+                            current_user.update("","+91"+number,"");
+                            //signInWithPhoneNumber(current_user.number);
+                            OTP();
+                          } }
+                disabled={false} >
+              GET OTP
+            </RNP.Button>
+        </ImageBackground>
+        </View>
+      </KeyboardAwareScrollView>
+    );
+  }
+
+
+  function OTPScreen() {
+    //Add resend OTP functionality, Hide/Disable OTP Text Box until required
+
+    const { signUp } = React.useContext(AuthContext);
+    const { signIn } = React.useContext(AuthContext);
+    const [code, setCode] = useState('');
+    const handleOTPChange = (otp) => {
+      setCode(otp);
+    };
+
+    const clearOTP = () => {
+      setCode('');
+    };
+
+    const autoFill = () => {
+      setCode( '221198' );
+    };
+
+    useEffect(() => {
+
+      const backStart = () => {
+        dispatch({ type: 'RESTORE_TOKEN', token: null });
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+        backStart
+      );
+
+      return () => backHandler.remove();
+    }, []);
+
+    //console.log("name: "+current_user.name+" number: "+current_user.number+" email: "+current_user.email);
+
+    return (
+
+      <View>
+
+        <OTPInput
+          value={code}
+          onChange={handleOTPChange}
+          cellStyle={{marginBottom:5,
+            marginTop:Dimensions.get('window').height/4,}}
+          tintColor="#FB6C6A"
+          offTintColor="#BBBCBE"
+          otpLength={6}
+        />
+
+        <RNP.Button
+          mode='contained'
+          style={{
+            width:Dimensions.get('window').width/1.5,
+            left: Dimensions.get('window').width/6,
+            }}
+          onPress={async () =>{
+            //If user found in database then log in to contacts screen, else go to create user screen.
+            
+            //confirmed
+            //let confirmed = await confirmCode(code);
+
+            if ( code == current_user.number.substring(3,9) ) {
+              console.log("Calling get user" );
+              let response = await getUser(current_user.number);
+
+              if (response) console.log("getuser successfull");
+              else  console.log("getuser Failed");
+              //setIsReady(false);
+              if(response){
+                signIn()
+              }
+              else{
+                current_user.token = 'DUMMY';
+                signUp()
+              }
+            } else {
+              // remain in OTP screen
+              console.log("Confirm Code failed");
+            }
+            
+          }}
+          >
+         Confirm Code
+        </RNP.Button>
+        <RNP.Button  mode='text' compact style={styles.resend_button} onPress={()=>{}}>Resend OTP </RNP.Button>
+      </View>
+
+    );
+  }
+
+
+  function CreateUserScreen({ navigation }) {
+
+    const { signIn } = React.useContext(AuthContext);
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    //Call getUser here before rendering Register user page.
+
+    useEffect(() => {
+      const backStart = () => {
+        dispatch({ type: 'RESTORE_TOKEN', token: null });
+        return true;
+      };
+      const backHandler = BackHandler.addEventListener(
+        "hardwareBackPress",
+          backStart
+      );
+
+      return () => backHandler.remove();
+    }, []);
+
+
+
+    return (
+      <KeyboardAwareScrollView>
+        <View style={styles.new_user_container}>
+            <RNP.TextInput
+              style={styles.new_input}
+              mode='outlined'
+              keyboardType='default'
+              placeholder="Enter Full Name"
+              label='Full Name'
+              outlineColor='white'
+              activeOutlinedColor='#214463'
+              onChangeText={(text) => setName( text ) }
+              value={name}
+              />
+            <RNP.TextInput
+              keyboardType='email-address'
+              mode='outlined'
+              label='E-mail'
+              style={styles.new_input}
+              value={email}
+              placeholder="Enter Email"
+              onChangeText={(text) => setEmail( text ) }
+              />
+            <RNP.Button
+              style={styles.next_button}
+              mode='contained'
+              onPress={async () => {
+                       //Add User with name and E-mail
+                       current_user.update(name,'',email,'',['View']);
+                       console.log(current_user.name + " "+ current_user.email + " " + current_user.Permissions);
+                       addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
+                       let luser = {};
+                        luser["_id"] = current_user.number;
+                        luser["name"] = current_user.name;
+                        luser["displayName"] = current_user.dspn;
+                        luser["e_mail"] = current_user.email;
+                        luser["auth_token"] = current_user.token;
+                        luser["auth_type"] = "Google FireBase";
+                        luser["Permissions"] = ["View"];
+
+                       await cache.set("SignedIn_User", JSON.stringify(luser));
+                       let c = await cache.get("SignedIn_User");
+                       console.log("Calling from Create User function: \n"+c);
+                       signIn();
+                      }}
+              disabled={false}
+            >
+            Next
+            </RNP.Button>
+        </View>
+      </KeyboardAwareScrollView>
+    );
+  }
 
 
   function CreatePost({navigation}){
-    //Attach to FAB on Home Screen
+    //Attached to FAB on Home Screen.
 
     const { signOut } = React.useContext(AuthContext);
     const { back } = React.useContext(AuthContext);
     const URLName = encodeURIComponent(current_user.number);  //current_user.number
-    const URL = "http://editor.dwall.xyz/?Author="+ URLName;
-    let webRef = React.createRef(null);
+    const URL = "http://editor.dwall.xyz/?Author="+ URLName+"&DisplayName="+encodeURIComponent(current_user.name);
+    //let webRef = React.createRef(null);
+    Alert.alert("You can copy this URL into your browser to create a post from there.:\n", URL);
 
     console.log(URL);
     //const URL = "http://editor.dwall.xyz/?Author="+current_user.number.substring(3);
@@ -495,7 +978,7 @@ const App: () => Node = ({navigation}) => {
     }, 3000);
     */
     return(
-      <KeyboardAwareScrollView style={styles.container}>
+      <KeyboardAwareScrollView style={styles.container_creatPost}>
         <WebView
           originWhitelist={['*']}
 
@@ -531,179 +1014,215 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-  
+  function ContactsScreen({navigation, route}) {
+
+    //Use Contacts array to populate FlatList.
+    //Map Contacts to their posts through getUser
+    //First contact should be this user.
+
+    const { input } = React.useContext(AuthContext);
+    const { view } = React.useContext(AuthContext);
+    const { signOut } = React.useContext(AuthContext);
+    const [search, setSearch] = useState('');
+    const [filteredDataSource, setFilteredDataSource] = useState(g_contacts);
+    
 
 
-  const GetContacts = async () => {
+    /*
+      React.useLayoutEffect(() => {
+        navigation.setOptions({
+          headerSearchBarOptions: {
+            onChangeText: (event) => searchFilterFunction(event.nativeEvent.text),
+            onClear:(event) => searchFilterFunction(''),
+            hideNavigationBar: true,
+            disableBackButtonOverride: false,
+          },
 
 
-      try{
-      const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.READ_CONTACTS,
-                  {
-                    'title': 'Contacts',
-                    'message': 'This app would like to view your contacts.',
-                    'buttonPositive': 'Please accept bare mortal'
-                  }
-                );
-        if(permission === PermissionsAndroid.RESULTS.GRANTED)
-        {
-          let cs = await Contacts.getAllWithoutPhotos();
+        });
+      }, [navigation]);
+    */
 
-            // work with contacts
-            //console.log("Printing cs: \n" + cs);
-            let contactsObj = [];
-            let num_array = [];
-            cs.forEach((contact, i) => {
-                let contactObj = {};
-                contactObj.name = contact.givenName + ' ' + contact.familyName;
-                
-                contactObj.index = i+1;
-                contact.phoneNumbers.forEach((num, i) => {
-                      //console.log(number.number);
-                      contactObj.Author = num.number;
-                  });        // end foreach
-                contactObj.postCount = 0;
-                contactObj.recentPost = '';  
-              contactsObj.push(contactObj);
-              num_array.push(contactObj.Author);
-            }); // end foreach
+      React.useEffect(() => {
 
-            let response = await getAllUsers(num_array);
-
-
-            //filter registered contacts.
-            
-            if(response !== null) {
-              // prepare responseArray from response
-              let responseArray =  [];
-
-              response.forEach(element => {
-                responseArray.push(element.Author);
-              });
-
-
-              // for each element in contactsObj; check if number is present in response
-              // if Yes, Ignore it ( don't append )
-
-              var filtered = contactsObj.filter( (value) => {
-                return !responseArray.includes(value.Author);
-                });
-
-                let key = "name";
-                filtered.sort(function(a,b){
-                  var x = a[key]; var y = b[key];
-                  return ((x < y) ? -1 : ((x > y) ? 1 : 0));
-                });
-
-               setGcontacts(response.concat(filtered)); 
-            } 
-            else {
-
-              let key = "name";
-              contactsObj.sort(function(a,b){
-                var x = a[key]; var y = b[key];
-                return ((x < y) ? -1 : ((x > y) ? 1 : 0));
-                });
-
-                setGcontacts(contactsObj);
-            }
-
-
-            // for each element in contactsObj; check if number is present in response
-            // if Yes, Ignore it ( don't append )
-
-            /*
-            let key = "name";
-            contactsObj.sort(function(a,b){
-              var x = a[key]; var y = b[key];
-              return ((x < y) ? -1 : ((x > y) ? 1 : 0));
-            });
-            setGcontacts(contactsObj);*/
-            //console.log("Everything run successfully in GetContacts: \n" + JSON.stringify(g_contacts) + "\n"+ JSON.stringify(contactsObj));
+        //current_user.update(user.name,user._id,user.e_mail,user.auth_token,user.displayName);
+        //console.log(g_contacts);
+        if(filteredDataSource.length === 0){
+            setFilteredDataSource(g_contacts);
+          }
+      },[]);
 
 
 
-        } // end then
-        else{
-          console.log("Calling from GetContacts else \n" + "Permission not granted");
+
+    // store item.phoneNumber in some variable
+
+    const searchFilterFunction = (text) => {
+      // Check if searched text is not blank
+      if (text) {
+        // Inserted text is not blank
+        // Filter the masterDataSource
+        // Update FilteredDataSource
+        const newData = g_contacts.filter(function (item) {
+          const itemData = item.name
+            ? item.name.toUpperCase()
+            : ''.toUpperCase();
+          const textData = text.toUpperCase();
+          return itemData.indexOf(textData) > -1;
+        });
+        setFilteredDataSource(newData);
+        setSearch(text);
+      } else {
+        // Inserted text is blank
+        // Update FilteredDataSource with masterDataSource
+        setFilteredDataSource(g_contacts);
+        setSearch(text);
+      }
+    };
+
+
+      // Removed subtitle for notice board use case. Will have to add it again later. subtitle={this.props.item.Author}
+
+      class Item extends React.PureComponent {
+
+        render()
+          {
+            return(
+            <Provider>
+            <TouchableOpacity
+                onPress={() => {
+                    if(this.props.item.postCount > 0){
+                    setSelectedUser(this.props.item.Author);
+                    getPost(this.props.item.Author);
+                    setTitle({type:'newTitle', payload: this.props.item.name});
+                    view()
+                  } else {
+                    ToastAndroid.showWithGravityAndOffset(
+                      "Selected User has not created any posts.",
+                      ToastAndroid.LONG,
+                      ToastAndroid.BOTTOM,
+                      25,
+                      50
+                    );
+                  }                  
+                  }}
+                style={[styles.contact_item]}>
+              <Card style={[styles.contacts_card]} mode='outlined'>
+                <Card.Title title={this.props.item.name} titleStyle={{color:'#214463',fontSize:22}}  subtitleStyle={{fontSize: 16}} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" backgroundColor="#214463" />} />
+                <Card.Content>                   
+                    {this.props.item.recentPost !== '' ?
+                      (
+                      <RNP.Surface style={styles.surface}>
+                      <WebView
+                            originWhitelist={['*']}
+                            source={{html: htmlCard+"<body>"+this.props.item.recentPost+"</body>"}}
+                            containerStyle={{width:'100%',
+                                    height: '100%',
+                                    flex: 0,position:'relative' }}
+                            style={{
+                              height: '100%',
+                              width: '100%',
+                            }}
+                            scalesPageToFit={true}
+                          /> 
+                    </RNP.Surface>
+                    ) : null
+                    }
+                    <Paragraph style={{color:'#780b10',fontSize:16,fontStyle:'italic',alignSelf:'center'}}>Total Post(s): {this.props.item.postCount}</Paragraph>
+                  </Card.Content>
+              </Card>
+
+            </TouchableOpacity>
+            </Provider>
+
+          );
         }
       }
-      catch(err){
-        console.log("Calling from GetContacts last catch() \n"+err);
-      }
-
-  };
 
 
+     const renderItem = ({ item }) => {
 
 
-  function ProfileScreen() {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Profile!</Text>
-      </View>
-    );
-  }
-
-
-
-  function SplashScreen() {
-    return (
-      <View style={{justifyContent:'space-evenly', alignItems:'center',flex: 1}}>
-        <Image
-          source={require('./assets/Virtual-Notice-Board-logos.png')}
-          style={styles.logo} />
-        <RNP.ActivityIndicator animating={true} color={RNP.Colors.red800} size='large' />
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
-
-
-  async function signInWithPhoneNumber(phoneNumber) {
-    console.log(phoneNumber);
-    const confirmation = await auth().signInWithPhoneNumber(phoneNumber,true);
-    console.log(confirmation.verificationId);
-
-    setConfirm(confirmation);
-  }
-
-  const confirmCode = (code) => new Promise(async resolve => {
-    console.log("Inside Confirm Code");
-    try {
-      if(await confirm.confirm(code)){
-
-        current_user.token = confirm.verificationId;
-        //setIsReady(true);
-        ToastAndroid.showWithGravityAndOffset(
-          "Code Confirmed",
-          ToastAndroid.LONG,
-          ToastAndroid.BOTTOM,
-          25,
-          50
+        return (
+          <Item
+            key={item.index}
+            item={item}
+            style={{paddingHorizontal:0, marginHorizontal:10,width: Dimensions.get("window").width / 2.6,
+            height: Dimensions.get("window").width / 2.6,}}
+          />
         );
-
-        //console.log("Code confirmed for user:" + number + " Name:" + name + " Display Name:" + displayName + " email:" + email );
-
-        //addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
+    };
 
 
-        resolve(true);
+
+    const _onPress = (item)=>{
+      ToastAndroid.showWithGravityAndOffset(
+        `${item.title}  called`,
+        ToastAndroid.LONG,
+        ToastAndroid.BOTTOM,
+        25,
+        50
+      );
+
+    }
 
 
-      }
-    } catch (error) {
-        console.log(error);
-        ToastAndroid.showWithGravityAndOffset(
-          "Wrong Code Entered, Enter the correct code.",
-          ToastAndroid.LONG,
-          ToastAndroid.BOTTOM,
-          25,
-          50
-        );
-          resolve(false);
-      }
-  });
+      return(
+      <Provider>
+        <View style={styles.container}>
+            <FlatList
+              bounces={true}
+              data={filteredDataSource}
+              renderItem={({item}) =>
+                <Item
+                  key={item.index}
+                  item={item}
+                  style={{paddingHorizontal:0, marginHorizontal:10,width: Dimensions.get("window").width / 2.6,
+                  height: Dimensions.get("window").width / 2.6,}}
+                />
+              }
+              keyExtractor={(item) => item.index}
+              initialNumToRender={10}
+              onEndReached={()=>{}}
+              contentInsetAdjustmentBehavior="automatic"
+              ListHeaderComponent={
+                visible?
+                  <SearchBar
+                    round
+                    searchIcon={{ size: 24 }}
+                    onChangeText={(text) => searchFilterFunction(text)}
+                    onClear={(text) => searchFilterFunction('')}
+                    placeholder="Search..."
+                    value={search}
+                    lightTheme
+                    onCancel={()=>{setVisible(false)}}
+                    showCancel={true}
+                  /> : null
+              }
+              style={{width: Dimensions.get("window").width,
+              height: Dimensions.get("window").height/1.1, flex:0 }}
+              refreshControl={
+                <RefreshControl refreshing={false}/>
+              }
+            />
+            {current_user.Permissions.includes('Add') ?
+            <>
+            <FAB
+                style={styles.fab}
+                medium
+                icon="plus"
+                onPress={() => input()}
+              />
+            </> : null
+            }
+          </View>
+        </Provider>
+
+
+      );
+
+
+  }
 
 
   function HomeScreen({navigation}) {
@@ -828,368 +1347,6 @@ const App: () => Node = ({navigation}) => {
   }
 
 
-
-
-  function CreateUserScreen({ navigation }) {
-
-    const { signIn } = React.useContext(AuthContext);
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    //Call getUser here before rendering Register user page.
-
-    useEffect(() => {
-      const backStart = () => {
-        dispatch({ type: 'RESTORE_TOKEN', token: null });
-        return true;
-      };
-      const backHandler = BackHandler.addEventListener(
-        "hardwareBackPress",
-          backStart
-      );
-
-      return () => backHandler.remove();
-    }, []);
-
-
-
-    return (
-
-
-      <KeyboardAwareScrollView>
-
-
-        <View style={styles.new_user_container}>
-
-            <TextInput
-              style={styles.new_input}
-              keyboardType='default'
-              placeholder="Enter Full Name"
-              onChangeText={(text) => setName( text ) }
-              value={name}
-              />
-            <TextInput
-              keyboardType='email-address'
-              style={styles.new_input}
-              value={email}
-              placeholder="Enter Email"
-              onChangeText={(text) => setEmail( text ) }
-              />
-            <RNP.Button
-              style={styles.next_button}
-              mode='contained'
-              onPress={async () => {
-                       //Add User with name and E-mail
-                       current_user.update(name,'',email,'');
-                       console.log(current_user.name + " "+ current_user.email);
-                       addUser(current_user.number,current_user.name,current_user.name,current_user.email,current_user.token);
-                       let luser = {};
-                        luser["_id"] = current_user.number;
-                        luser["name"] = current_user.name;
-                        luser["displayName"] = current_user.dspn;
-                        luser["e_mail"] = current_user.email;
-                        luser["auth_token"] = current_user.token;
-                        luser["auth_type"] = "Google FireBase";
-
-                       await cache.set("SignedIn_User", JSON.stringify(luser));
-                       let c = await cache.get("SignedIn_User");
-                       console.log("Calling from Create User function: \n"+c);
-                       signIn();
-                      }}
-              disabled={false}
-            >
-            Next
-            </RNP.Button>
-        </View>
-
-      </KeyboardAwareScrollView>
-    );
-  }
-
-
-
-  function OTPScreen() {
-    //Add resend OTP functionality, Hide/Disable OTP Text Box until required
-
-    const { signUp } = React.useContext(AuthContext);
-    const { signIn } = React.useContext(AuthContext);
-    const [code, setCode] = useState('');
-    const handleOTPChange = (otp) => {
-      setCode(otp);
-    };
-
-    const clearOTP = () => {
-      setCode('');
-    };
-
-    const autoFill = () => {
-      setCode( '221198' );
-    };
-
-    useEffect(() => {
-
-      const backStart = () => {
-        dispatch({ type: 'RESTORE_TOKEN', token: null });
-        return true;
-      };
-      const backHandler = BackHandler.addEventListener(
-        "hardwareBackPress",
-        backStart
-      );
-
-      return () => backHandler.remove();
-    }, []);
-
-    //console.log("name: "+current_user.name+" number: "+current_user.number+" email: "+current_user.email);
-
-    return (
-
-      <View>
-
-        <OTPInput
-          value={code}
-          onChange={handleOTPChange}
-          cellStyle={{marginBottom:5,
-            marginTop:Dimensions.get('window').height/4,}}
-          tintColor="#FB6C6A"
-          offTintColor="#BBBCBE"
-          otpLength={6}
-        />
-
-        <RNP.Button
-          mode='contained'
-          style={{
-            width:Dimensions.get('window').width/1.5,
-            left: Dimensions.get('window').width/6,
-            }}
-          onPress={async () =>{
-            //If user found in database then log in to contacts screen, else go to create user screen.
-            let confirmed = await confirmCode(code);
-
-            if ( confirmed ) {
-              console.log("Calling get user" );
-              let response = await getUser(current_user.number);
-
-              if (response) console.log("getuser successfull");
-              else  console.log("getuser Failed");
-              //setIsReady(false);
-              if(response){
-                signIn()
-              }
-              else{
-                signUp()
-              }
-            } else {
-              // remain in OTP screen
-              console.log("Confirm Code failed");
-            }
-          }}
-          >
-         Confirm Code
-        </RNP.Button>
-        <RNP.Button  mode='text' compact style={styles.resend_button} onPress={()=>{}}>Resend OTP </RNP.Button>
-      </View>
-
-    );
-  }
-
-
-
-
-  function ContactsScreen({navigation, route}) {
-
-    //Use Contacts array to populate FlatList.
-    //Map Contacts to their posts through getUser
-    //First contact should be this user.
-
-    const { input } = React.useContext(AuthContext);
-    const { view } = React.useContext(AuthContext);
-    const { signOut } = React.useContext(AuthContext);
-    const [search, setSearch] = useState('');
-    const [filteredDataSource, setFilteredDataSource] = useState(g_contacts);
-    
-
-
-    /*
-      React.useLayoutEffect(() => {
-        navigation.setOptions({
-          headerSearchBarOptions: {
-            onChangeText: (event) => searchFilterFunction(event.nativeEvent.text),
-            onClear:(event) => searchFilterFunction(''),
-            hideNavigationBar: true,
-            disableBackButtonOverride: false,
-          },
-
-
-        });
-      }, [navigation]);
-    */
-
-      React.useEffect(() => {
-
-        //current_user.update(user.name,user._id,user.e_mail,user.auth_token,user.displayName);
-        //console.log(g_contacts);
-        if(filteredDataSource.length === 0){
-            setFilteredDataSource(g_contacts);
-          }
-      },[]);
-
-
-
-
-    // store item.phoneNumber in some variable
-
-    const searchFilterFunction = (text) => {
-      // Check if searched text is not blank
-      if (text) {
-        // Inserted text is not blank
-        // Filter the masterDataSource
-        // Update FilteredDataSource
-        const newData = g_contacts.filter(function (item) {
-          const itemData = item.name
-            ? item.name.toUpperCase()
-            : ''.toUpperCase();
-          const textData = text.toUpperCase();
-          return itemData.indexOf(textData) > -1;
-        });
-        setFilteredDataSource(newData);
-        setSearch(text);
-      } else {
-        // Inserted text is blank
-        // Update FilteredDataSource with masterDataSource
-        setFilteredDataSource(g_contacts);
-        setSearch(text);
-      }
-    };
-
-
-      class Item extends React.PureComponent {
-
-        render()
-          {
-            return(
-            <Provider>
-            <TouchableOpacity
-                onPress={() => {
-                    setSelectedUser(this.props.item.Author);
-                    getPost(this.props.item.Author);
-                    view()}}
-                style={[styles.contact_item]}>
-              <Card style={[styles.contacts_card]} mode='outlined'>
-                <Card.Title title={this.props.item.name} titleStyle={{color:'#214463',fontSize:22}} subtitle={this.props.item.Author} subtitleStyle={{fontSize: 16}} left={(props) => <Avatar.Icon {...props} icon="account-circle-outline" backgroundColor="#214463" />} />
-                <Card.Content>                   
-                    {this.props.item.recentPost !== '' ?
-                      (
-                      <RNP.Surface style={styles.surface}>
-                      <WebView
-                            originWhitelist={['*']}
-                            source={{html: htmlCard+"<body>"+this.props.item.recentPost+"</body>"}}
-                            containerStyle={{width:'100%',
-                                    height: '100%',
-                                    flex: 0,position:'relative' }}
-                            style={{
-                              height: '100%',
-                              width: '100%',
-                            }}
-                            scalesPageToFit={true}
-                          /> 
-                    </RNP.Surface>
-                    ) : null
-                    }
-                    <Paragraph style={{color:'#b53d09',fontSize:16,fontStyle:'italic',alignSelf:'center'}}>Total Post(s): {this.props.item.postCount}</Paragraph>
-                  </Card.Content>
-              </Card>
-
-            </TouchableOpacity>
-            </Provider>
-
-          );
-        }
-      }
-
-
-     const renderItem = ({ item }) => {
-
-
-        return (
-          <Item
-            key={item.index}
-            item={item}
-            style={{paddingHorizontal:0, marginHorizontal:10,width: Dimensions.get("window").width / 2.6,
-            height: Dimensions.get("window").width / 2.6,}}
-          />
-        );
-    };
-
-
-
-    const _onPress = (item)=>{
-      ToastAndroid.showWithGravityAndOffset(
-        `${item.title}  called`,
-        ToastAndroid.LONG,
-        ToastAndroid.BOTTOM,
-        25,
-        50
-      );
-
-    }
-
-
-      return(
-      <Provider>
-        <View style={styles.container}>
-            <FlatList
-              bounces={true}
-              data={filteredDataSource}
-              renderItem={({item}) =>
-                <Item
-                  key={item.index}
-                  item={item}
-                  style={{paddingHorizontal:0, marginHorizontal:10,width: Dimensions.get("window").width / 2.6,
-                  height: Dimensions.get("window").width / 2.6,}}
-                />
-              }
-              keyExtractor={(item) => item.index}
-              initialNumToRender={10}
-              onEndReached={()=>{}}
-              contentInsetAdjustmentBehavior="automatic"
-              ListHeaderComponent={
-                visible?
-                  <SearchBar
-                    round
-                    searchIcon={{ size: 24 }}
-                    onChangeText={(text) => searchFilterFunction(text)}
-                    onClear={(text) => searchFilterFunction('')}
-                    placeholder="Search..."
-                    value={search}
-                    lightTheme
-                    onCancel={()=>{setVisible(false)}}
-                    showCancel={true}
-                  /> : null
-              }
-              style={{width: Dimensions.get("window").width,
-              height: Dimensions.get("window").height/1.1, flex:0 }}
-              refreshControl={
-                <RefreshControl refreshing={false}/>
-              }
-            />
-            <>
-            <FAB
-                style={styles.fab}
-                medium
-                icon="plus"
-                onPress={() => input()}
-              />
-            </>
-          </View>
-        </Provider>
-
-
-      );
-
-
-  }
-
-
   function FeedbackScreen({navigation}) {
 
     const { back } = React.useContext(AuthContext);
@@ -1256,15 +1413,18 @@ const App: () => Node = ({navigation}) => {
           </RNP.Drawer.Section>
           
           <RNP.Drawer.Section style={styles.drawerSection}>
-            <RNP.Drawer.Item
+            { current_user.Permissions.includes('Add') ?
+              <RNP.Drawer.Item
               icon="account-outline"
               label="My Posts"
               onPress={() => {
                 setSelectedUser(current_user.number);
                 getPost(current_user.number);
+                setTitle({type:'newTitle', payload: current_user.name});
                 view()
               }}
-            />
+            /> : null
+            }
             <RNP.Drawer.Item
               icon="bookmark-outline"
               label="Bookmarks"
@@ -1289,9 +1449,25 @@ const App: () => Node = ({navigation}) => {
               icon="logout"
               label="Sign-Out"
               onPress={async () => {
-                setConfirm(null);
-                await cache.clearAll();
-                signOut()
+                Alert.alert(
+                  "Sign Out",
+                  "Are you sure you want to Sign-Out.",
+                  [
+                    {
+                      text: "Cancel",
+                      onPress: () => console.log("Pressed Cancel"),
+                      style: "cancel"
+                    },
+                    { 
+                      text: "OK", 
+                      onPress: async () => {
+                        setConfirm(null);
+                        await cache.clearAll();
+                        signOut()
+                      }
+                    }
+                  ]
+                )
               }}
             />
           </RNP.Drawer.Section>
@@ -1327,13 +1503,22 @@ const App: () => Node = ({navigation}) => {
 }
 
 
+  /*
+    <SwiperFlatList
+                index={posts.length-1}
+                style={styles.wrapper}
+                data={posts}
+                renderItem={Page}
+              />
+  */
+
   function PostScreen({navigation}) {
 
 
     const { back } = React.useContext(AuthContext);
     //const [post,setPost] = useState(getPost(selectedUser));
 
-    
+    console.log("Current User : - " + current_user.number);
 
     const theme = {
       ...DefaultTheme,
@@ -1368,7 +1553,7 @@ const App: () => Node = ({navigation}) => {
     useEffect(() => {
 
       setTimeout(() => {}, 10000);
-      
+      console.log(postTitle);
       if(selectedUser !== '') {
         console.log("Got posts for :" + selectedUser);
         //let userForPost = selectedUser;
@@ -1377,23 +1562,13 @@ const App: () => Node = ({navigation}) => {
       }
 
       console.log(posts.length);
-      
-      if(posts.length === 0) {
-        
-        ToastAndroid.showWithGravityAndOffset(
-          "Selected User has not created any posts.",
-          ToastAndroid.LONG,
-          ToastAndroid.BOTTOM,
-          25,
-          50
-        );
-      }
 
       const backHandler = BackHandler.addEventListener(
         "hardwareBackPress",
         () => {
           setPosts([]);
-          back()
+          back();
+          return true;
         }
       );
 
@@ -1401,7 +1576,8 @@ const App: () => Node = ({navigation}) => {
     }, []);
 
 
-      const Page = ({item}) => {
+      const Page = (item) => {
+          
           return(
             //Allow local file access with allowFileAccess prop (use local file uri to render post html)
             <Provider>
@@ -1412,7 +1588,7 @@ const App: () => Node = ({navigation}) => {
                         height: Dimensions.get('window').height/1.5,
                       flex: 1, }}
               />
-              {current_user.number===item.Author?
+              {current_user.number==item.Author ?
                 (<Appbar style={styles.bottom}>
                 <FAB
                   style={styles.fab_delete}
@@ -1433,14 +1609,14 @@ const App: () => Node = ({navigation}) => {
         return(
           <>
             <View style={styles.swipe_container}>
-              <SwiperFlatList
-                pagingEnabled
-                index={posts.length-1}
+              
+              <Swiper
                 style={styles.wrapper}
-                data={posts}
-                renderItem={Page}
+                swipeData={posts}
+                renderSwipeItem={Page}
+                currentSelectIndex={posts.length-1}
+                autoplay={false}
               />
-
             </View>
           </>
 
@@ -1449,53 +1625,8 @@ const App: () => Node = ({navigation}) => {
 
 
 
-  function SignUpScreen() {
-    //Beautify text inputs.
-    const [number, setNumber] = useState('');
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const {OTP} = React.useContext(AuthContext);
-    const image = { uri: "http://api.dwall.xyz/v1/app/random-image" };
 
-
-    return (
-      <KeyboardAwareScrollView
-          style={{flex:1, height: Dimensions.get('window').height}}>
-         <View style={styles.container_signUp}>
-        <ImageBackground source={image} resizeMode="cover" style={styles.image}>
-
-            <RNP.TextInput
-              keyboardType='numeric'
-              mode='outlined'
-              style={styles.input}
-              outlineColor='white'
-              activeOutlinedColor='#214463'
-              placeholder="Enter Phone Number"
-              label="Phone Number"
-              maxLength={10}
-              onChangeText={(text) => setNumber( text ) }
-              value={number}
-              />
-            <RNP.Button
-                mode='contained'
-                style={styles.button}
-                compact
-                onPress={() =>
-                          {
-                            current_user.update(name,"+91"+number,email);
-                            signInWithPhoneNumber(current_user.number);
-                            OTP();
-                          } }
-                disabled={false} >
-              GET OTP
-            </RNP.Button>
-        </ImageBackground>
-        </View>
-      </KeyboardAwareScrollView>
-    );
-  }
-
-
+  //Different header bars to use 
 
   const HeaderBar = ({navigation, isBack, isSearch, isDrawer, title}) => {
         const {back} = React.useContext(AuthContext);
@@ -1536,9 +1667,7 @@ const App: () => Node = ({navigation}) => {
 
 
 
-
-
-
+  //Hooks to to help in proper rendering.
 
   const [state, dispatch] = React.useReducer(
     (prevState, action) => {
@@ -1553,6 +1682,7 @@ const App: () => Node = ({navigation}) => {
             isView: false,
             homeInitial: false,
             isFeedback: false,
+            
           };
         case 'SIGN_IN':
           return {
@@ -1564,6 +1694,7 @@ const App: () => Node = ({navigation}) => {
             isNewUser: false,
             homeInitial: false,
             isFeedback: false,
+            
           };
         case 'SIGN_UP':
           return {
@@ -1573,6 +1704,7 @@ const App: () => Node = ({navigation}) => {
             userToken: action.token,
             homeInitial: false,
             isFeedback: false,
+            
           };
         case 'SIGN_OUT':
           return {
@@ -1583,6 +1715,7 @@ const App: () => Node = ({navigation}) => {
             isView: false,
             isNewUser: false,
             homeInitial: false,
+            
             isFeedback: false,
           };
         case 'INPUT':
@@ -1592,6 +1725,7 @@ const App: () => Node = ({navigation}) => {
             isInput: true,
             isView: false,
             isFeedback: false,
+            
           };
         case 'BACK':
           return{
@@ -1600,6 +1734,7 @@ const App: () => Node = ({navigation}) => {
             isSignout: false,
             isView: false,
             isFeedback: false,
+            
           };
         case 'VIEW':
           return{
@@ -1610,18 +1745,21 @@ const App: () => Node = ({navigation}) => {
             isNewUser: false,
             homeInitial: false,
             isFeedback: false,
+            
           };
         case 'OTP':
           return{
             ...prevState,
             homeInitial: true,
             isFeedback: false,
-          }
+           
+          };
         case 'Feedback':
           return{
             ...prevState,
             isFeedback:true,
-          }
+            
+          };
       }
     },
 
@@ -1633,50 +1771,25 @@ const App: () => Node = ({navigation}) => {
       isView: false,
       homeInitial: false,
       isFeedback: false,
+      
     }
   );
 
 
 
+  /*
   React.useEffect(() => {
       // Fetch the token from storage then navigate to our appropriate place
-      const bootstrapAsync = async () => {
-        let userToken=null;
+      
 
-        try {
-          // Restore token stored in `SecureStore` or any other encrypted storage
-          //userToken = await confirm.confirm(code);
-
-          const luser = await cache.get("SignedIn_User");
-          const lJsonUser = JSON.parse(luser);
-          console.log("Calling from bootstrapasync:\nluser :-   " + luser+"\nlJsonUser:-   "+lJsonUser);
-          userToken = lJsonUser.auth_token;
-          current_user.update(lJsonUser.name,lJsonUser.Author,lJsonUser.e_mail,lJsonUser.auth_token,lJsonUser.displayName);
-
-          //g_contacts[0].name=current_user.name;
-          //g_contacts[0].PhoneNumber=current_user.number;
-        } catch (e) {
-          // Restoring token failed
-          //console.log(e);
-          //console.log("No user exists in cache.");
-          userToken = null;
-        }
-
-        // After restoring token, we may need to validate it in production apps
-
-        // This will switch to the App screen or Auth screen and this loading
-        // screen will be unmounted and thrown away.
-        dispatch({ type: 'RESTORE_TOKEN', token: userToken });
-      };
-
-      GetContacts();
-      bootstrapAsync();
+      //GetContacts();
+      //bootstrapAsync();
 
       //setTimeout(()=>{Alert.alert('I am appearing...', 'After 10 seconds!');},10000);
       //getPost("+919000945575");
     }, []
   );
-
+  */
 
 
   const authContext = React.useMemo(
@@ -1722,15 +1835,15 @@ const App: () => Node = ({navigation}) => {
 
 
 
+ 
+  //Rendering starts here.
 
   if(state.isLoading){
+    setTimeout(() => {}, 40000);
     return(
-      <SplashScreen />
+      <WelcomeScreen />
     );
   }
-
-
-// If confirm is there & user Token is not present =>
 
 
   if(!state.userToken){
@@ -1785,6 +1898,7 @@ const App: () => Node = ({navigation}) => {
     );
   }
 
+
   if(state.isNewUser){
     return(
       <AuthContext.Provider value={authContext}>
@@ -1826,7 +1940,7 @@ const App: () => Node = ({navigation}) => {
               headerStyle: {
                 backgroundColor: '#214463',
               },
-              header: (props) => <HeaderMenuBar title='PostScreen' isBack={true} isSearch={false} isDrawer={false} {...props} />
+              header: (props) => <HeaderMenuBar title={postTitle.title} isBack={true} isSearch={false} isDrawer={false} {...props} />
 
               }
             }
@@ -1838,6 +1952,7 @@ const App: () => Node = ({navigation}) => {
 
     );
   }
+
 
   return (
     <AuthContext.Provider value={authContext}>
@@ -1915,6 +2030,9 @@ const App: () => Node = ({navigation}) => {
 }
 
 
+
+//Styles for various components of the app.
+
 const styles = StyleSheet.create({
   container_signUp: {
 
@@ -1928,15 +2046,24 @@ const styles = StyleSheet.create({
   container:{
     marginTop: 0,
     padding: 5,
+    flex: 1,
+    justifyContent: 'center',
+  },
+  container_creatPost:{
+    marginTop: 0,
+    padding: 5,
+    flex: 1,
+    
   },
   image: {
     alignContent: 'center',
-    height: Dimensions.get('window').height/1.1,
+    height: Dimensions.get('window').height,
   },
   new_user_container:{
     marginTop: 0,
-    padding: 5,
-    justifyContent: 'space-around',
+    paddingTop: "30%",
+    justifyContent: 'flex-start',
+    height: Dimensions.get('window').height,
   },
   swipe_container: {
     flex: 1,
@@ -1968,13 +2095,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   wrapper: {
-    flex: 0,
+    flex: 1,
     height: Dimensions.get('window').height,
     width: Dimensions.get('window').width,
     backgroundColor: 'white',
   },
   bottom: {
-    flex: 2,
+    flex: 1,
     flexDirection: 'row',
     position: 'absolute',
     left: 0,
@@ -2023,7 +2150,7 @@ const styles = StyleSheet.create({
     maxWidth: Dimensions.get('window').width/1.03,
   },
   input: {
-    marginTop: '60%',
+    marginTop: '90%',
     paddingHorizontal: 24,
     fontSize: 20,
     height: 70,
@@ -2054,8 +2181,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#214463',
   },
   next_button: {
-    position: 'relative',
-    marginTop: Dimensions.get('window').height/1.85,
+    position: 'absolute',
+    marginTop: Dimensions.get('window').height/1.1,
     marginLeft: Dimensions.get('window').width/1.4,
 
     flexDirection: 'row',
@@ -2087,6 +2214,14 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
 
+  },
+  welcome_logo: {
+    alignSelf:'center',
+    marginBottom: 20,
+    marginTop:5,
+    width: Dimensions.get('window').width,
+    height: 300,
+    flex: 1,
   },
   roundButton: {
     width: 50,
